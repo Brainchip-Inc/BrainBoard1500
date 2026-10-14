@@ -1,0 +1,114 @@
+# 100 ImageNet classes for 10_ImageNetSubset (tools/make_imagenet_subset.py).
+# One class per line: the ImageNet index or the first name of the class as in
+# akida_models imagenet_labels2names.py. Lines starting with # are ignored.
+# Up to 100 classes: with at most 104 outputs the classifier fits one FNP3.
+
+# Kitchen and food
+504  coffee mug
+968  cup
+898  water bottle
+440  beer bottle
+907  wine bottle
+737  pop bottle
+899  water jug
+849  teapot
+505  coffeepot
+550  espresso maker
+859  toaster
+651  microwave
+760  refrigerator
+567  frying pan
+909  wok
+618  ladle
+813  spatula
+910  wooden spoon
+923  plate
+809  soup bowl
+659  mixing bowl
+954  banana
+950  orange
+951  lemon
+948  Granny Smith
+949  strawberry
+953  pineapple
+937  broccoli
+943  cucumber
+945  bell pepper
+947  mushroom
+963  pizza
+933  cheeseburger
+934  hotdog
+931  bagel
+
+# Desk and electronics
+508  computer keyboard
+673  mouse
+620  laptop
+527  desktop computer
+664  monitor
+782  screen
+681  notebook
+487  cellular telephone
+761  remote control
+605  iPod
+613  joystick
+742  printer
+632  loudspeaker
+650  microphone
+530  digital clock
+892  wall clock
+409  analog clock
+531  digital watch
+846  table lamp
+844  switch
+418  ballpoint
+709  pencil box
+767  rubber eraser
+700  paper towel
+
+# Home
+545  electric fan
+811  space heater
+882  vacuum
+897  washer
+606  iron
+999  toilet tissue
+804  soap dispenser
+721  pillow
+831  studio couch
+765  rocking chair
+559  folding chair
+532  dining table
+526  desk
+453  bookcase
+470  candle
+883  vase
+738  pot
+985  daisy
+728  plastic bag
+
+# Wearables and bags
+414  backpack
+748  purse
+893  wallet
+837  sunglasses
+879  umbrella
+770  running shoe
+774  sandal
+608  jean
+841  sweatshirt
+911  wool
+
+# Animals, toys, sport, tools
+281  tabby
+285  Egyptian cat
+207  golden retriever
+208  Labrador retriever
+850  teddy
+805  soccer ball
+852  tennis ball
+430  basketball
+671  mountain bike
+784  screwdriver
+587  hammer
+740  power drill

@@ -1,0 +1,10 @@
+akida==2.19.3
+numpy
+pillow
+# ECG sample beats (make_samples.py / build_all.py) use the Dev Hub pipeline:
+wfdb
+PyWavelets
+opencv-python-headless
+scipy
+scikit-learn
+joblib

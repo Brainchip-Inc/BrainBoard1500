@@ -1,0 +1,31 @@
+BrainBoard1500 - Arduino library for the BrainBoard1500 (BB15) rev 2
+Copyright 2026 Neuromorphyx
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This library contains third-party software:
+
+Akida Engine 2.19.3 (src/akida, src/akida_engine, src/akd1500, src/engine,
+src/infra), from the akida 2.19.3 Python package.
+Copyright BrainChip Holdings Ltd. / BrainChip, Inc.
+Licensed under the Apache License, Version 2.0.
+Modified for the Arduino mbed core as listed in PATCHES.md.
+
+FlatBuffers 2.0.8 headers (src/flatbuffers).
+Copyright Google Inc.
+Licensed under the Apache License, Version 2.0 (src/flatbuffers/LICENSE.txt).
+Modified as listed in PATCHES.md.
+
+The BB15 flash bridge (S2M) sequence, the flash chip profiles, the expander
+register usage and the Nicla Vision chip selects follow the public
+BrainBoard1500 Arduino library by Neuromorphyx
+(https://github.com/Neuromorphyx/BrainBoard1500_arduino_library),
+Copyright (c) 2026 Neuromorphyx, MIT License. No code was copied; the
+implementation in src/cbb15 is new.
+
+The models and sample inputs in src/cbb15_models are derived from the
+BrainChip Dev Hub (https://github.com/Brainchip-Inc/brainchip_devhub),
+Copyright 2025 Brainchip Holdings Ltd., Apache License 2.0. The ImageNet
+class names come from the akida_models package (Apache License 2.0). The ECG
+sample beats are derived from the MIT-BIH Arrhythmia Database (PhysioNet,
+Open Data Commons Attribution License v1.0; Moody GB, Mark RG. The impact of
+the MIT-BIH Arrhythmia Database. IEEE Eng in Med and Biol 20(3):45-50, 2001).
