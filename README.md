@@ -335,5 +335,14 @@ public BB15 library.
 
 BrainBoard1500 is released under the Apache License 2.0 (see [LICENSE](LICENSE)).
 It contains the Akida Engine 2.19.3 (© BrainChip, Apache 2.0) and FlatBuffers
+
+Commercial use is permitted under Apache License 2.0. Please credit the project
+as “BrainBoard1500 Arduino Library by Neuromorphyx” in publications and public
+project descriptions.
+
+For production integration, custom models, hardware supply or technical
+support, contact info@neuromorphyx.com.
+
+This attribution request does not add conditions to the Apache License 2.0.
 2.0.8 (© Google, Apache 2.0); see [NOTICE](NOTICE). The exported models are
 derived from the BrainChip Dev Hub (Apache 2.0).
