@@ -2,6 +2,12 @@ BrainBoard1500 - Arduino library for the BrainBoard1500 (BB15) rev 2
 Copyright 2026 Neuromorphyx
 Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+The BrainBoard1500 Arduino integration library was developed by Neuromorphyx.
+Third-party components, models and data are attributed separately below.
+
+Project: https://github.com/Neuromorphyx/BrainBoard1500
+Website: https://neuromorphyx.com/
+
 This library contains third-party software:
 
 Akida Engine 2.19.3 (src/akida, src/akida_engine, src/akd1500, src/engine,
