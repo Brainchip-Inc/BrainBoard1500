@@ -1,9 +1,12 @@
-BrainBoard1500 - Arduino library for the BrainBoard1500 (BB15) rev 2
-Copyright 2026 Neuromorphyx
+BrainBoard1500 Arduino Library
+
+Copyright 2026 NEX NOVUS d.o.o. (Neuromorphyx)
 Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-The BrainBoard1500 Arduino integration library was developed by Neuromorphyx.
-Third-party components, models and data are attributed separately below.
+The original BrainBoard1500 Arduino integration code and documentation
+were developed by NEX NOVUS d.o.o., operating under the Neuromorphyx brand.
+Third-party components, models and data retain their respective ownership
+and licence terms and are attributed below.
 
 Project: https://github.com/Neuromorphyx/BrainBoard1500
 Website: https://neuromorphyx.com/
