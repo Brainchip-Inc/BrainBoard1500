@@ -187,7 +187,7 @@
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright 2026 Neuromorphyx by NEX NOVUS d.o.o.
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -200,12 +200,3 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
-Commercial use is permitted under Apache License 2.0. Please credit the project
-as “BrainBoard1500 Arduino Library by Neuromorphyx / NEX NOVUS d.o.o.” in publications and public
-project descriptions.
-
-For production integration, custom models, hardware supply or technical
-support, contact info@neuromorphyx.com.
-
-This attribution request does not add conditions to the Apache License 2.0.
