@@ -232,4 +232,12 @@ patch('flatbuffers/base.h', [
      '#if !defined(ARDUINO) || !defined(__AVR__)\n#include <cstdint>\n#endif'),
     ('#if defined(ARDUINO) && !defined(ARDUINOSTL_M_H)',
      '#if defined(ARDUINO) && defined(__AVR__) && !defined(ARDUINOSTL_M_H)')])
+
+# 10. The one throw in the engine: the Nicla Voice core builds with
+#     -fno-exceptions, so it is reported through panic() like every other
+#     engine error.
+patch('akida/dense.h', [(
+    '      throw std::runtime_error("Dense::transpose only supports 3D tensors.");',
+    ('      // BrainBoard1500 patch: was a throw (no exceptions), see PATCHES.md\n'
+     '      panic("Dense::transpose only supports 3D tensors.");'))])
 print('all patches applied')

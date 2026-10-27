@@ -21,6 +21,7 @@ python tools/patch_engine.py <akida>/engine <flatbuffers-v2.0.8> src
 | `akida_engine/hardware_device_impl.*` | `std::optional<PipelineState::slot>` → nullable pointer | C++14 library |
 | `akida_engine/io_ops.h` | `std::is_same_v` → `std::is_same<>::value`, `std::clamp` → `std::min`/`std::max` | C++14 library |
 | `akida_engine/version.cpp` | defines `AKIDA_VERSION "2.19.3"` (a per-file CMake definition upstream) | no per-file defines |
+| `akida/dense.h` | `Dense::transpose()` reports a non-3D tensor with `panic()` instead of throwing `std::runtime_error` | the Nicla Voice core compiles with `-fno-exceptions` |
 | `flatbuffers/base.h` | the `ARDUINO` special cases (no STL) only apply to AVR | mbed has a full libstdc++ |
 
 `if constexpr` and inline variables remain; GCC accepts them in gnu++14 mode

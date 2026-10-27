@@ -208,7 +208,8 @@ class AKIDASHAREDLIB_EXPORT Dense : public Tensor {
   DensePtr transpose(const std::vector<Index>& permutations) const {
     const auto old_shape = dimensions();
     if (permutations.size() != 3 || old_shape.size() != 3) {
-      throw std::runtime_error("Dense::transpose only supports 3D tensors.");
+      // BrainBoard1500 patch: was a throw (no exceptions), see PATCHES.md
+      panic("Dense::transpose only supports 3D tensors.");
     }
     std::vector<Index> new_dims(permutations.size());
     for (size_t i = 0; i < permutations.size(); ++i) {
