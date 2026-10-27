@@ -1,0 +1,137 @@
+# Rejects a pull request whose title, or whose commits, do not follow
+# `type(scope): concise message`.
+#
+# The title check runs on every pull request. The commit check runs only on
+# pull requests into the default branch, because a release pull request carries
+# every commit already on the default branch, including history from before
+# these gates existed that nobody can go back and rewrite.
+#
+# This repository is a fork, so the commit check also skips every commit that
+# already exists in the upstream repository named by UPSTREAM_REPO in
+# .github/ci-gates/ci-gates.conf. An upstream sync pull request carries
+# Neuromorphyx's commits with Neuromorphyx's subjects, which are theirs to write
+# and cannot be rewritten without breaking the next sync. Its title is still
+# checked like any other.
+#
+# actions/checkout is GitHub's own first-party action, not a third-party one.
+# It checks out the BASE branch, so the validator and the configuration that run
+# are always the copies on the protected branch and never versions edited
+# inside the pull request. The one exception is a base branch that carries no
+# validator at all, which is how these gates get installed in the first place.
+# See "Select the validator".
+
+name: ci-gates
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the validator from the base branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Check out the pull request, for its commits and as a fallback validator
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pull-request
+          fetch-depth: 0
+
+      - name: Select the validator
+        run: |
+          set -euo pipefail
+
+          # Preferring the base branch is what stops a pull request from
+          # relaxing its own gate. The pull request's copy is used only when the
+          # base branch carries no validator at all, which is the pull request
+          # that installs these gates in the first place. That fallback cannot
+          # weaken an installed gate, because a pull request cannot remove the
+          # validator from the branch it is targeting.
+          validator=$PWD/.github/ci-gates/check-subject.sh
+          if [ ! -f "$validator" ]; then
+            validator=$PWD/pull-request/.github/ci-gates/check-subject.sh
+            echo "::notice::the base branch carries no validator yet, so this pull request's own copy is used"
+          fi
+
+          if [ ! -f "$validator" ]; then
+            echo "::error::no validator found on either the base branch or this pull request"
+            exit 1
+          fi
+
+          # The configuration always travels with the validator it was chosen
+          # alongside, for the same reason.
+          conf=$(dirname "$validator")/ci-gates.conf
+          UPSTREAM_REPO=""
+          if [ -f "$conf" ]; then
+            # shellcheck source=/dev/null
+            . "$conf"
+          fi
+
+          echo "VALIDATOR=$validator" >> "$GITHUB_ENV"
+          echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> "$GITHUB_ENV"
+          echo "validator: $validator"
+          echo "upstream: ${UPSTREAM_REPO:-none}"
+
+      - name: Check the pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bash "$VALIDATOR" "$PR_TITLE"
+
+      - name: Check every commit subject
+        if: github.event.pull_request.base.ref == github.event.repository.default_branch
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          repo=pull-request
+
+          # The base commit may be newer than anything the checkout fetched,
+          # when the base branch moved while this job was queued.
+          git -C "$repo" fetch --no-tags --quiet origin "$BASE_SHA"
+
+          if [ -n "$UPSTREAM_REPO" ]; then
+            if git -C "$repo" fetch --no-tags --quiet \
+              "https://github.com/$UPSTREAM_REPO.git" '+refs/heads/*:refs/upstream/*'; then
+              echo "skipping every commit already in $UPSTREAM_REPO"
+            else
+              echo "::warning::could not fetch $UPSTREAM_REPO, so its commits are checked like any other"
+            fi
+          fi
+
+          # Merge commits carry a generated subject nobody chose, so they are
+          # skipped. Everything the author actually wrote is checked.
+          mapfile -t commits < <(
+            git -C "$repo" rev-list --no-merges --reverse "$HEAD_SHA" --not "$BASE_SHA" --glob=refs/upstream
+          )
+          upstream=$(git -C "$repo" rev-list --no-merges --count "$HEAD_SHA" --not "$BASE_SHA")
+          upstream=$((upstream - ${#commits[@]}))
+          if [ "$upstream" -gt 0 ]; then
+            echo "skipped $upstream commits that already exist in $UPSTREAM_REPO"
+          fi
+
+          if [ "${#commits[@]}" -eq 0 ]; then
+            echo "no non-merge commits to check"
+            exit 0
+          fi
+
+          failed=0
+          for commit in "${commits[@]}"; do
+            message=$(git -C "$repo" show --no-patch --format=%B "$commit")
+            bash "$VALIDATOR" "${message%%$'\n'*}" || failed=1
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo
+            echo "Rewrite the offending commits with 'git rebase -i' and force push the branch."
+            exit 1
+          fi

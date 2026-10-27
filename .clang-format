@@ -1,0 +1,8 @@
+# The style BrainChip's code in this fork is written in: Google, two-space
+# indent, an 80 column limit. It is declared here rather than assumed so the
+# lint gate has an agreed style to check a changed file against.
+#
+# Only the files BrainChip adds are checked against it. Every file that also
+# exists in Neuromorphyx/BrainBoard1500 keeps upstream's own formatting, so the
+# lint gate never looks at one; see .github/ci-gates/ci-gates.conf.
+BasedOnStyle: Google
