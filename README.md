@@ -1,5 +1,11 @@
 # BrainBoard1500
 
+> **This is BrainChip's fork of
+> [Neuromorphyx/BrainBoard1500](https://github.com/Neuromorphyx/BrainBoard1500).**
+> The library itself is Neuromorphyx's work: BrainBoard1500 Arduino Library by
+> Neuromorphyx / NEX NOVUS d.o.o. BrainChip adds its own demos under
+> `examples/BrainChip/`, kept apart from the upstream examples.
+
 Arduino library for the **BrainBoard1500 (BB15) rev 2** – a BrainChip AKD1500
 neuromorphic accelerator module – driven by an **Arduino Nicla Vision**.
 
