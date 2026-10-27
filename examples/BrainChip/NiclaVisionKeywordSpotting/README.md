@@ -25,19 +25,30 @@ AKD1500 over SPI at start-up (slot 0), so the demo writes nothing to the BB15
 flash and needs no flasher. The program is 54,344 bytes and is compiled into
 the sketch, so it lives in STM32H747 program flash.
 
+It is mapped with `akida.MapMode.HwPr`, which the header records: the mode
+that uses as many neural processors as it can and allows the most hardware
+passes, reconfiguring the fabric between them. This model still maps to a
+single pass in that mode, with every layer on the same neural processors as
+Akida's default `MapMode.AllNps`, so the program is byte for byte the same in
+either mode.
+
 The source model is spark's `model_files/kws/akida_model.fbz`, saved by Akida
 2.17.0, SHA-256
 `a1a6e2d0755decfccbf3d8165ffd9f949365bc3160aa0dbb12d85123df052abf`. Akida
 2.19.3 reads it unchanged, and its software outputs on 256 test inputs are
 identical to Akida 2.17.0's. The header was made with the library's own
-exporter, from a directory holding that file at `model_files/kws/`, with
+exporter, whose command line has no option for HwPr, so it is called from
+Python, from a directory holding that file at `model_files/kws/`, with
 `akida==2.19.3` installed:
 
 ```bash
-python <repository>/tools/export_model.py model_files/kws/akida_model.fbz \
-    --name spark_kws \
-    --labels "down,go,left,no,off,on,right,stop,up,yes,silence,unknown" \
-    --out <repository>/examples/BrainChip/NiclaVisionKeywordSpotting
+PYTHONPATH=<repository>/tools python -c '
+import akida, export_model
+export_model.export(
+    "model_files/kws/akida_model.fbz", "spark_kws",
+    "<repository>/examples/BrainChip/NiclaVisionKeywordSpotting",
+    labels="down,go,left,no,off,on,right,stop,up,yes,silence,unknown".split(","),
+    mode=akida.MapMode.HwPr, notes=["Map mode: HwPr."])'
 ```
 
 The mapping is deterministic: running it again reproduces the header byte for
