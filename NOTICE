@@ -47,3 +47,19 @@ examples, tools and documentation that BrainChip adds to it are
 Copyright 2026 BrainChip Holdings Ltd. and are licensed under the Apache
 License, Version 2.0, on the same terms as the rest of this library
 (see LICENSE). BrainChip adds its examples under examples/BrainChip/.
+
+Kiss FFT (examples/BrainChip/NiclaVisionKeywordSpotting/kiss_fft*.{c,h} and
+examples/BrainChip/NiclaVisionConnect/kiss_fft*.{c,h}), vendored unmodified
+from BrainChip's spark firmware, which carries it at
+source/core/common/audio/kissfft/ (https://github.com/mborgerding/kissfft).
+Copyright (c) 2003-2010, Mark Borgerding. All rights reserved.
+Licensed under the BSD 3-Clause License. kiss_fft.h carries the full licence
+text, and every file carries the SPDX identifier BSD-3-Clause.
+
+The MFCC front end (examples/BrainChip/NiclaVisionKeywordSpotting/mfcc.{h,cpp}
+and examples/BrainChip/NiclaVisionConnect/mfcc.{h,cpp}) is new code that
+reproduces, value for value, the MFCC feature extraction in BrainChip's spark
+firmware, which is derived from Arm's ML-KWS-for-MCU.
+Copyright (C) 2018 Arm Limited or its affiliates. All rights reserved.
+Licensed under the Apache License, Version 2.0 (see LICENSE). mfcc.h carries
+the attribution.
