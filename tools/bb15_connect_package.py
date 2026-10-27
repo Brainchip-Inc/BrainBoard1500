@@ -1,7 +1,8 @@
 """Package an Akida model for the BrainChip Connect app and NiclaVisionConnect.
 
-The model is mapped for the AKD1500 exactly as export_model.py maps it, and the
-serialized program is split into its program info and program data halves.
+The model is mapped for the AKD1500 exactly as export_model.py maps it, in
+akida's default map mode unless --map-mode names another, and the serialized
+program is split into its program info and program data halves.
 The package is the `.zip` the app sends over Bluetooth:
 
     <name>/info.yaml
@@ -15,7 +16,8 @@ so `app` in info.yaml is that same name. The zip is byte-for-byte reproducible.
 Usage:
     python bb15_connect_package.py model_files/kws/akida_model.fbz \\
         --name brainboard1500_nicla_vision_keyword_spotting \\
-        --mfcc-fs 123.56967163085938 --silence-class 10 --unknown-class 11
+        --mfcc-fs 123.56967163085938 --silence-class 10 --unknown-class 11 \\
+        --map-mode HwPr
 """
 
 from __future__ import annotations
@@ -101,6 +103,7 @@ def package(
     mfcc_fs: float | None = None,
     silence_class: int | None = None,
     unknown_class: int | None = None,
+    map_mode: str | None = None,
 ) -> str:
     """Map a model for the AKD1500 and write its BrainChip Connect package.
 
@@ -111,6 +114,8 @@ def package(
         mfcc_fs: MFCC full scale of a keyword model, or None for any other.
         silence_class: Index of the silence class, or None.
         unknown_class: Index of the unknown class, or None.
+        map_mode: Name of the akida.MapMode to map with, or None for akida's
+            default.
 
     Returns:
         Path of the zip that was written.
@@ -122,7 +127,8 @@ def package(
     model = akida.Model(fbz)
     input_shape = tuple(int(value) for value in model.input_shape)
     output_shape = tuple(int(value) for value in model.output_shape)
-    program, passes, _ = map_for_akd1500(model)
+    mode = akida.MapMode[map_mode] if map_mode is not None else None
+    program, passes, _ = map_for_akd1500(model, mode)
     if passes != 1:
         raise ExportError(f"{passes} passes; BrainBoard1500 runs single-pass programs")
     info_size = split_program(program)
@@ -161,6 +167,11 @@ def main() -> None:
     parser.add_argument("--mfcc-fs", type=float, help="keyword models only")
     parser.add_argument("--silence-class", type=int, help="keyword models only")
     parser.add_argument("--unknown-class", type=int, help="keyword models only")
+    parser.add_argument(
+        "--map-mode",
+        choices=list(akida.MapMode.__members__),
+        help="akida.MapMode to map with (default: akida's default)",
+    )
     args = parser.parse_args()
     print(
         package(
@@ -170,6 +181,7 @@ def main() -> None:
             args.mfcc_fs,
             args.silence_class,
             args.unknown_class,
+            args.map_mode,
         )
     )
 
