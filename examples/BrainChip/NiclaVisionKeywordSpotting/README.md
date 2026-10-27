@@ -53,6 +53,9 @@ arduino-cli compile --fqbn arduino:mbed_nicla:nicla_vision --library . examples/
 arduino-cli upload --fqbn arduino:mbed_nicla:nicla_vision --port /dev/cu.usbmodem101 examples/BrainChip/NiclaVisionKeywordSpotting
 ```
 
+The sketch brings the BrainBoard up with the library's default configuration,
+which fits the BB15 rev 2 it was tested on, power enable on pin 15 included.
+
 Then start the desktop tool. `PY` has to be a Python with Tk 8.6 or later, not
 necessarily the `python3` on your PATH; "The Python the desktop tool needs"
 below explains why and how to check:

@@ -72,6 +72,7 @@ void wait_for_serial() {
  *         ready.
  */
 cbb15::Status prepare_board() {
+  // The defaults fit a BB15 rev 2, including its power enable on pin 15.
   cbb15::BoardConfig config;
   config.assumeFlashReady = false;
   const cbb15::Status status = g_board.begin(config, &Serial);

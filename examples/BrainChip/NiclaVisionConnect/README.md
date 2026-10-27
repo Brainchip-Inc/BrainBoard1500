@@ -159,6 +159,9 @@ arduino-cli compile --fqbn arduino:mbed_nicla:nicla_vision --library . examples/
 arduino-cli upload --fqbn arduino:mbed_nicla:nicla_vision --port /dev/cu.usbmodem101 examples/BrainChip/NiclaVisionConnect
 ```
 
+The sketch brings the BrainBoard up with the library's default configuration,
+which fits the BB15 rev 2 it was tested on, power enable on pin 15 included.
+
 Copy `models/brainboard1500_nicla_vision_keyword_spotting.zip` to the phone.
 Then open the app, pick `BrainBoard1500` from the device list, connect, and
 send the package from the Model Update screen. Keyword Spotting then appears on

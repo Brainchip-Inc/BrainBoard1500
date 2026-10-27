@@ -854,6 +854,7 @@ bool akida_failed(const char* stage, cbb15::Status status) {
  * @return True when the runtime is ready to infer.
  */
 bool prepare_akida() {
+  // The defaults fit a BB15 rev 2, including its power enable on pin 15.
   cbb15::Status status = g_board.begin(cbb15::BoardConfig(), &Serial);
   if (status != cbb15::Status::Ok) {
     return akida_failed("board", status);
