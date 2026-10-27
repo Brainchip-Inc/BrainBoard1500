@@ -38,3 +38,12 @@ class names come from the akida_models package (Apache License 2.0). The ECG
 sample beats are derived from the MIT-BIH Arrhythmia Database (PhysioNet,
 Open Data Commons Attribution License v1.0; Moody GB, Mark RG. The impact of
 the MIT-BIH Arrhythmia Database. IEEE Eng in Med and Biol 20(3):45-50, 2001).
+
+BrainChip additions
+
+This repository is BrainChip's fork of the BrainBoard1500 Arduino Library
+(https://github.com/Brainchip-Inc/BrainBoard1500). The modifications,
+examples, tools and documentation that BrainChip adds to it are
+Copyright 2026 BrainChip Holdings Ltd. and are licensed under the Apache
+License, Version 2.0, on the same terms as the rest of this library
+(see LICENSE). BrainChip adds its examples under examples/BrainChip/.
