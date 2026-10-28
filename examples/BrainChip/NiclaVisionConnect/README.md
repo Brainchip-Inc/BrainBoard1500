@@ -3,10 +3,10 @@
 A BrainChip example for the Nicla Vision on a BrainBoard1500, driven entirely
 from the BrainChip Connect phone app over Bluetooth Low Energy instead of from
 a desktop tool over USB. It advertises as `BrainBoard1500`, answers the app's
-commands, receives its model from the app, stores it in BB15 flash, and
-reports detections back.
+commands, receives its models from the app, stores them in BB15 flash, and
+reports detections back. It runs two applications.
 
-It runs **Keyword Spotting**: ten keywords, `down`, `go`, `left`, `no`, `off`,
+**Keyword Spotting** recognises ten keywords, `down`, `go`, `left`, `no`, `off`,
 `on`, `right`, `stop`, `up`, `yes`. The model also reports `silence` and
 `unknown`, which are scored but can never trigger a detection. The audio
 pipeline is the `NiclaVisionKeywordSpotting` example's, value for value: the
@@ -14,15 +14,24 @@ same DC blocker, 960-sample blocks, RMS speech gate, MFCC front end,
 spectrogram ring, inference period, smoothing, debounce and chiming. The app's
 App Controls change the six detector settings live.
 
+**Vision Human Detection** scores the camera against the visual wake words
+model and reports a person when it sees one. The camera's whole 320x240 field
+of view is squeezed to the model's 96x96 input and turned half a turn, exactly
+as the library's `03_PersonDetection` does: the Dev Hub trained the model on
+whole images resized to 96x96, and the camera is mounted USB-side down. While
+the app's camera view is open, the board sends it a live grayscale preview of
+what the model was given.
+
 The sketch chooses the application from the model's input shape, so another
-demo, such as human detection, is one more input shape, one more flash slot and
-its own pipeline.
+demo is one more input shape, one more flash slot and its own pipeline.
 
-## The model this example needs
+## The models this example needs
 
-**No model is compiled into this sketch.** The app sends it over Bluetooth as a
-`.zip`, and the board writes it into BB15 flash and loads it from there. A model
-survives a power cycle and a firmware update, so it only has to be sent once.
+**No model is compiled into this sketch.** The app sends each one over
+Bluetooth as a `.zip`, and the board writes it into BB15 flash and loads it from
+there. A model survives a power cycle and a firmware update, so it only has to
+be sent once, and each application has its own slot, so sending one leaves the
+other alone.
 
 The keyword spotting package is
 `models/brainboard1500_nicla_vision_keyword_spotting.zip`. It is BrainChip's
@@ -42,7 +51,26 @@ python <repository>/tools/bb15_connect_package.py model_files/kws/akida_model.fb
     --map-mode HwPr --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 ```
 
-The zip is reproducible: the same model gives the same bytes.
+The human detection package is
+`models/brainboard1500_nicla_vision_human_detection.zip`. It is the BrainChip
+Dev Hub visual wake words model, the same model as `03_PersonDetection`'s
+`vww.h`, mapped for the AKD1500 with Akida 2.19.3 in `akida.MapMode.AllNps`: the
+package's two halves together are byte for byte that header's program. It was
+made with `tools/bb15_connect_package.py`, from the Dev Hub's
+`akida1/model_zoo/vww/pretrained_models/akidanet_vww_qat.fbz` (SHA-256
+`90531d024b3359f836651748ff867aeaf0019aa0dd7067b9849fb5a3f5381b22`), with
+`akida==2.19.3` installed:
+
+```bash
+python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
+    --name brainboard1500_nicla_vision_human_detection \
+    --map-mode AllNps --out <repository>/examples/BrainChip/NiclaVisionConnect/models
+```
+
+`AllNps` is a single pass. `HwPr`, which the keyword model uses, maps this model
+into three passes, and the library runs single-pass programs only.
+
+Both zips are reproducible: the same model gives the same bytes.
 
 The archive holds `info.yaml` and a `<name>_program_info.bin` /
 `<name>_program_data.bin` pair, which is the shape the app reads. `mfcc_fs`,
@@ -55,6 +83,7 @@ and the pipeline refuses a keyword model without `mfcc_fs`.
 | `input_shape` | application | BB15 flash slot |
 | --- | --- | --- |
 | `[49, 10, 1]` | Keyword Spotting | 2 |
+| `[96, 96, 3]` | Vision Human Detection | 1 |
 
 A model whose shape matches no application is refused as soon as its program
 info has arrived, before any of the model data is sent.
@@ -69,7 +98,7 @@ reports the refusal over its serial port and keeps running.
 
 ## Where the model is stored
 
-The model is stored in the library's own flash slot format (see "Model
+Each model is stored in the library's own flash slot format (see "Model
 storage: flash slots" in the repository `README.md`), so the library's examples
 see it as an ordinary slot: `01_SpiLinkTest` lists it, and `02_ModelFlasher`
 overwrites it cleanly.
@@ -83,18 +112,25 @@ overwrites it cleanly.
 `flash_address` in `info.yaml` must therefore be `0x1000`, which is the library's
 fixed data offset; anything else is refused at START with `ERR_PARAM`.
 
-Keyword spotting uses slot 2, the slot `02_ModelFlasher` gives to the library's
-own keyword model, so the two replace each other's keyword model and nothing
-else. After this sketch has stored its model, `04_KeywordSpotting` reports
-"flash slot holds another model" until `02_ModelFlasher` is run again, and after
-`02_ModelFlasher` has run, this sketch logs that slot 2 holds a model another
-sketch stored and waits for the app to send its own again. The slot's user area,
-where `08_VoiceLearning` keeps learned weights, is never touched.
+Each application uses the slot `02_ModelFlasher` gives to the library's own
+model of the same kind, keyword spotting slot 2 and human detection slot 1, so
+the two sketches replace each other's models and nothing else. After this
+sketch has stored its keyword model, `04_KeywordSpotting` reports "flash slot
+holds another model" until `02_ModelFlasher` is run again. The human detection
+model is upstream's own program, so `03_PersonDetection` runs from the slot this
+sketch wrote. After `02_ModelFlasher` has run, this sketch logs that slots 1 and
+2 hold models another sketch stored and waits for the app to send its own
+again. The slots' user areas, where `08_VoiceLearning` keeps learned weights,
+are never touched.
 
 Only one program fits in the Akida fabric, so nothing is loaded until the app
-asks for an application to run. Each slot's program info is read once at boot
-and kept in memory, so starting an application costs no flash bridge time:
-the AKD1500 reads the program data out of flash itself as it is programmed.
+asks for an application to run, and starting the other one is a model swap.
+Each slot's program info is read once at boot and kept in memory, so starting an
+application costs no flash bridge time: the AKD1500 reads the program data out
+of flash itself as it is programmed. Measured on the bench, a swap takes 13 ms
+for the keyword model and 46 ms for the human detection one, including one
+inference on a blank input, which is how the board satisfies itself the model
+really runs before it says so.
 
 ## How the model arrives
 
@@ -163,10 +199,11 @@ arduino-cli upload --fqbn arduino:mbed_nicla:nicla_vision --port /dev/cu.usbmode
 The sketch brings the BrainBoard up with the library's default configuration,
 which fits the BB15 rev 2 it was tested on, power enable on pin 15 included.
 
-Copy `models/brainboard1500_nicla_vision_keyword_spotting.zip` to the phone.
-Then open the app, pick `BrainBoard1500` from the device list, connect, and
-send the package from the Model Update screen. Keyword Spotting then appears on
-the home screen, and Run Application starts it.
+Copy both packages in `models/` to the phone. Then open the app, pick
+`BrainBoard1500` from the device list, connect, and send a package from the
+Model Update screen. Each model that arrives adds its application to the home
+screen, so send both to get both; Run Application starts whichever one you
+pick.
 
 The serial port carries a short log of what the board is doing, at 115200 baud.
 It is not needed to run the demo. Each boot opens with `previous_run=`, which
@@ -183,7 +220,7 @@ The RGB LED is driven directly and is active low.
 | Blue, one short flash every two seconds | advertising, no phone connected |
 | Green, steady | a phone is connected |
 | Blue, fast blink | a model transfer is running |
-| Red, one short flash | a keyword was detected |
+| Red, one short flash | a keyword was detected, or a person is in view |
 | Red, slow blink | setup failed; the serial log says at which stage |
 
 ## Battery
@@ -197,19 +234,94 @@ USB: the gauge sits on the system rail, so with no cell it reports that rail as
 a full, healthy battery and its battery-present bit agrees. A board on USB with
 no cell therefore reads as a charged one.
 
+## The camera
+
+Human detection takes frames from the camera with the library's
+`cbb15::CameraStream`, which captures the next frame into a second buffer while
+the current one is scored, so the sketch's loop never waits for the camera and
+keeps answering the phone. The two 320x240 capture buffers are 300 kB, more than
+half the RAM, so they are taken only while human detection runs and given back
+when it stops. Measured on the bench, scoring one frame takes about 24 ms: 8 ms
+to turn the capture into the model's input and 16 ms for the inference, 5.5 ms
+of it in the AKD1500 itself.
+
+If the camera does not answer at boot, the board says so on its serial port and
+carries on with keyword spotting alone; Vision Human Detection then does not
+start, and the serial port says why.
+
 ## What the board reports
 
-Keyword spotting reports events, not state: it sends a keyword when one is
-spoken and says nothing while nobody is speaking. A keyword is reported once
-its smoothed score has held at or above 0.50 for three inferences in a row.
+Both applications report events, not state. Keyword spotting sends a keyword
+when one is spoken and says nothing while nobody is speaking. Human detection
+sends a person when one arrives in front of the camera and says nothing while
+the view is clear.
+
+A keyword is reported once its smoothed score has held at or above 0.50 for
+three inferences in a row. A person is reported once the person score has held
+at or above 0.50 for three frames in a row, the same threshold and the same
+count. Someone who stays in view is not reported again: where a keyword arms the
+detector again by ending, a person does not end, so the detector arms again only
+once the score has fallen back for three frames. Arriving, leaving and arriving
+again is two detections, and standing still is one.
+
+**Nothing is sent when the person leaves, by design.** No end-of-detection
+message exists, exactly as none exists when a spoken word stops, so the phone
+shows the last person seen until it sees the next one. The LED is the live
+indicator instead: it follows every scored frame, so it flashes while a person
+is in front of the camera and stays quiet when the view is clear.
+
+## The camera preview frame
+
+Preview frames ride the same notify characteristic as the microphone waveform,
+`6e400003-b5a3-f393-e0a9-e50e24dcca9e`, and are told apart from the text frames
+by the first byte and from the waveform by the second. The app implements this
+layout, so a board change that alters it breaks the phone.
+
+| offset | size | field |
+| --- | --- | --- |
+| 0 | 1 | magic, `0x42` |
+| 1 | 1 | command, `0x0D` for a preview |
+| 2 | 2 | uint16 LE image sequence, one per image |
+| 4 | 2 | uint16 LE byte offset of this chunk within the image |
+| 6 | 1 | image width in pixels |
+| 7 | 1 | image height in pixels |
+| 8 | 1 | pixel format, `0` for 8-bit grayscale |
+| 9 | 1 | reserved, zero |
+| 10 | .. | pixels, up to 229 of them |
+
+Every chunk carries the geometry, so a reader needs no state beyond the image
+it is assembling: start a new image of `width * height` bytes when the sequence
+changes, write each chunk at its own offset, and render when it is full. At
+96x96 an image is 9,216 pixels in 41 notifications, 9,626 bytes on the wire once
+the headers are counted. A chunk needs a link MTU of at least 242 bytes, which
+the app asks for; ArduinoBLE cuts a notification short to fit a smaller one.
+
+**Every image the board sends is whole.** The camera produces frames far faster
+than the link carries them, so a frame offered while one is still going out is
+dropped rather than queued or spliced in. What the phone receives is therefore
+a sequence of complete images, each the newest one available when its turn
+came, and the backlog never grows however slow the link is.
+
+The board sends at most four notifications per pass of its loop, so a link slow
+to accept them delays the preview and nothing else: inference keeps running at
+its own rate and detections keep going out on their own frames ahead of any
+image. The serial log reports what the preview is actually achieving every five
+seconds, as `[preview] fps= bytes_per_s= dropped=`.
+
+Sending a notification blocks the sketch until the Bluetooth controller has a
+buffer free, because `HCIClass::sendAclPkt` busy-waits on its packet credits in
+ArduinoBLE, and that wait has no timeout. It is why the preview drops rather
+than queues, and it is one reason detections are events rather than a reading
+per frame.
 
 ## What the app cannot do against this board
 
 The app's edge learning and firmware update screens will not work here, because
-this example exposes neither service. Everything else the app offers for
-keyword spotting is supported: discovery, connection, device information,
-battery, the application list, running and stopping the detector, the live
-microphone waveform, and the six App Controls.
+this example exposes neither service. Everything else the app offers is
+supported: discovery, connection, device information, battery, the application
+list, running and stopping either detector, the
+live microphone waveform, the camera preview, and the six keyword spotting App
+Controls.
 
 Leaving the device screen does not drop the Bluetooth link, so the board stays
 connected and, as a peripheral serving one central, stops advertising. If the
