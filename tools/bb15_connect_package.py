@@ -2,7 +2,9 @@
 
 The model is mapped for the AKD1500 exactly as export_model.py maps it, in
 akida's default map mode unless --map-mode names another, and the serialized
-program is split into its program info and program data halves.
+program is split into its program info and program data halves. A multi-pass
+program is packaged as it is: the Akida engine runs its passes itself, whether
+the program is pushed over SPI or read from a flash slot.
 The package is the `.zip` the app sends over Bluetooth:
 
     <name>/info.yaml
@@ -121,16 +123,13 @@ def package(
         Path of the zip that was written.
 
     Raises:
-        ExportError: If the program is not one a BB15 flash slot can hold,
-            the same limits export_model.py applies.
+        ExportError: If the program data does not fit a BB15 flash slot.
     """
     model = akida.Model(fbz)
     input_shape = tuple(int(value) for value in model.input_shape)
     output_shape = tuple(int(value) for value in model.output_shape)
     mode = akida.MapMode[map_mode] if map_mode is not None else None
-    program, passes, _ = map_for_akd1500(model, mode)
-    if passes != 1:
-        raise ExportError(f"{passes} passes; BrainBoard1500 runs single-pass programs")
+    program, _, _ = map_for_akd1500(model, mode)
     info_size = split_program(program)
     if len(program) - info_size > SLOT_MAX_DATA:
         raise ExportError(f"program data exceeds a flash slot ({SLOT_MAX_DATA} B)")
