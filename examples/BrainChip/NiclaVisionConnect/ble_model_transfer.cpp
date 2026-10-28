@@ -1370,19 +1370,23 @@ bool readInstalledModel(App app) {
   return true;
 }
 
+// A blank input as large as the largest application's. It is const so that it
+// stays in flash: the heap left beside the camera's capture buffers cannot be
+// relied on to lend 27 kB in one piece.
+const uint8_t kBlankInput[kVisionInputShape[0] * kVisionInputShape[1] *
+                          kVisionInputShape[2]] = {};
+
 /**
  * @brief Run one inference on a blank input, to prove the model really runs.
  *
- * The input is sized from the program the engine now holds, which is what it
- * reads, rather than from what the phone said.
+ * Only called once the program has been checked against its slot's input
+ * shape, which is one of the applications', so kBlankInput covers it.
  *
  * @return What the runtime reported.
  */
 cbb15::Status modelInfers() {
-  const uint32_t elements = shapeVolume(g_runtime->programInfo().input_dims());
-  std::unique_ptr<uint8_t[]> blank(new uint8_t[elements]());
   cbb15::InferenceResult result;
-  return g_runtime->infer(blank.get(), result);
+  return g_runtime->infer(kBlankInput, result);
 }
 
 /**

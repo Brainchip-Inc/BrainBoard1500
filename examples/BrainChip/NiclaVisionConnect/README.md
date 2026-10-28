@@ -257,12 +257,18 @@ Human detection takes frames from the camera with the library's
 `cbb15::CameraStream`, which captures the next frame into a second buffer while
 the current one is scored, so the sketch's loop never waits for the camera and
 keeps answering the phone. The two 320x240 capture buffers are 300 kB, more than
-half the RAM, so they are taken only while human detection runs and given back
-when it stops. Measured on the bench, scoring one frame takes about 24 ms with
-the `AllNps` package: 8 ms to turn the capture into the model's input and 16 ms
-for the inference, 5.5 ms of it in the AKD1500 itself. With the `HwPr` package
-it takes about 53 ms: the same 8 ms, then 45 ms for the inference, 34.5 ms of it
-in the AKD1500.
+half the RAM. They are reserved when the sketch is built, as in
+`03_PersonDetection`, rather than taken from the heap when human detection
+starts: once a few models have been sent and swapped, the heap cannot be
+relied on to hold 300 kB in one piece. About 70 kB of heap is left beside them,
+so nothing large is taken from it: even the blank input that proves a newly sent
+model runs is a constant in flash.
+
+Measured on the bench, scoring one frame takes about 24 ms with the `AllNps`
+package: 8 ms to turn the capture into the model's input and 16 ms for the
+inference, 5.5 ms of it in the AKD1500 itself. With the `HwPr` package it takes
+about 53 ms: the same 8 ms, then 45 ms for the inference, 34.5 ms of it in the
+AKD1500.
 
 If the camera does not answer at boot, the board says so on its serial port and
 carries on with keyword spotting alone; Vision Human Detection then does not

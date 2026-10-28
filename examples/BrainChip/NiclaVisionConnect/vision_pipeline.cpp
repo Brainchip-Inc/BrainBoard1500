@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <memory>
-#include <new>
-
 #include "camera.h"
 #include "gc2145.h"
 
@@ -18,10 +15,6 @@ constexpr int32_t kCameraImageMode = CAMERA_RGB565;
 constexpr int32_t kCameraFrameRate = 30;
 constexpr size_t kCaptureBytes = 320u * 240u * 2u;
 constexpr uint32_t kCaptureTimeoutMs = 3000u;
-
-// The camera DMA writes straight into the capture buffers, and the stream
-// refuses one that is not on a cache line.
-constexpr size_t kCaptureAlignment = 32u;
 
 constexpr uint16_t kModelChannels = 3u;
 constexpr size_t kModelInputBytes =
@@ -51,8 +44,11 @@ uint8_t g_lapsed = 0u;
 bool g_armed = true;
 
 cbb15::CameraStream g_stream;
-// Both capture buffers in one allocation, held only while scoring.
-std::unique_ptr<uint8_t[]> g_capture;
+// Static, as in 03_PersonDetection, because once models have been sent and
+// swapped the heap cannot be relied on for 300 kB in one piece. The camera DMA
+// writes straight into them, and the stream refuses a buffer off a cache line.
+alignas(32) uint8_t g_capture[2][kCaptureBytes];
+bool g_capturing = false;
 
 uint8_t g_model_input[kModelInputBytes];
 uint8_t g_preview[kPreviewBytes];
@@ -75,36 +71,22 @@ Camera& camera() {
 }
 
 /**
- * @brief Take the two capture buffers and start the camera filling them, or
- *        stop it and give them back.
+ * @brief Start the camera filling the two capture buffers, or stop it.
  *
  * @param wanted  True to capture, false to stop.
  * @return True when capture is in the state asked for.
  */
-bool hold_capture(bool wanted) {
-  if (wanted == (g_capture != nullptr)) {
+bool set_capturing(bool wanted) {
+  if (wanted == g_capturing) {
     return true;
   }
-  if (!wanted) {
+  if (wanted) {
+    g_capturing = g_stream.begin(g_capture[0], g_capture[1], kCaptureBytes);
+  } else {
     g_stream.end();
-    g_capture.reset();
-    return true;
+    g_capturing = false;
   }
-
-  g_capture.reset(new (std::nothrow)
-                      uint8_t[2u * kCaptureBytes + kCaptureAlignment]);
-  if (g_capture == nullptr) {
-    Serial.println("[vision] no room for the camera's capture buffers");
-    return false;
-  }
-  uintptr_t start = reinterpret_cast<uintptr_t>(g_capture.get());
-  start = (start + kCaptureAlignment - 1u) & ~(kCaptureAlignment - 1u);
-  uint8_t* first = reinterpret_cast<uint8_t*>(start);
-  if (!g_stream.begin(first, first + kCaptureBytes, kCaptureBytes)) {
-    g_capture.reset();
-    return false;
-  }
-  return true;
+  return wanted == g_capturing;
 }
 
 /**
@@ -275,11 +257,11 @@ void setInferenceRunning(bool running) {
   if (running && !g_camera_ready) {
     Serial.println("[vision] not started: the camera did not answer at boot");
   }
-  g_running = running && modelReady() && g_camera_ready && hold_capture(true);
+  g_running = running && modelReady() && g_camera_ready && set_capturing(true);
   g_failure_reported = false;
   reset_decision_state();
   if (!g_running) {
-    hold_capture(false);
+    set_capturing(false);
   }
 }
 

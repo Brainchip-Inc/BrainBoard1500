@@ -49,10 +49,6 @@ using PreviewHandler = void (*)(const uint8_t* pixels);
 /**
  * @brief Start the camera.
  *
- * The capture buffers are not allocated here. They are taken when scoring
- * starts and given back when it stops, because together they are more than
- * half of the RAM and keyword spotting has no use for them.
- *
  * @return True when the sensor answered and is configured. Scoring never
  *         starts without it.
  */
@@ -74,8 +70,7 @@ bool modelReady();
 /**
  * @brief Start or stop turning camera frames into inferences.
  *
- * Stopping releases the camera's two capture buffers, which are 300 kB and
- * the largest single thing this demo holds.
+ * Stopping also stops the camera capturing.
  *
  * @param running  True to score frames.
  */
