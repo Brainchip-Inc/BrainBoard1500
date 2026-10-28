@@ -525,11 +525,18 @@ void onRxWritten(BLEDevice, BLECharacteristic characteristic) {
   if (next == g_queue_tail) {
     return;
   }
+  const uint8_t* value = characteristic.value();
   size_t length = static_cast<size_t>(characteristic.valueLength());
   if (length > kMaxCommandBytes - 1u) {
     length = kMaxCommandBytes - 1u;
   }
-  memcpy(g_queue[g_queue_head], characteristic.value(), length);
+  // The app ends every command with a carriage return, which would otherwise
+  // become part of the last field: "5:keyword\r" names no application.
+  while (length > 0u &&
+         (value[length - 1u] == '\r' || value[length - 1u] == '\n')) {
+    --length;
+  }
+  memcpy(g_queue[g_queue_head], value, length);
   g_queue[g_queue_head][length] = '\0';
   g_queue_head = next;
 }

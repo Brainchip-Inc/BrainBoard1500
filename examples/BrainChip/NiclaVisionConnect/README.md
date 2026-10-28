@@ -319,7 +319,7 @@ per frame.
 The app's edge learning and firmware update screens will not work here, because
 this example exposes neither service. Everything else the app offers is
 supported: discovery, connection, device information, battery, the application
-list, running and stopping either detector, the
+list and each application's details, running and stopping either detector, the
 live microphone waveform, the camera preview, and the six keyword spotting App
 Controls.
 
