@@ -29,3 +29,12 @@ copied because the BB15 only carries an AKD1500.
 
 Behaviour is unchanged: every replaced cast checks the same type
 relationship that the original `dynamic_cast` checked.
+
+## Changes to the cbb15 library
+
+BrainChip carries these changes to Neuromorphyx's own library code in
+`src/cbb15/`. Each is a commit of its own, so it can be offered upstream.
+
+| File | Change | Reason |
+|---|---|---|
+| `cbb15/cbb15_akida.cpp` | `Akida::run()` and `updateStreamInput()` re-apply the flash runtime profile before a job only when the program is single-pass | re-applying it disables and reconfigures the AKD1500's SPI master; a multi-pass program, such as one mapped with `HwPr`, reads each pass from flash on every job, so from a flash slot every job after the first timed out |

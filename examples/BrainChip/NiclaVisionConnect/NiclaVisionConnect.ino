@@ -7,6 +7,7 @@
 #include "ble_protocol.h"
 #include "device_status.h"
 #include "kws_pipeline.h"
+#include "vision_pipeline.h"
 
 #ifndef ARDUINO_NICLA_VISION
 #error "NiclaVisionConnect requires Arduino Nicla Vision."
@@ -82,10 +83,12 @@ cbb15::Status prepare_board() {
   return g_runtime.begin(g_board);
 }
 
-/** @brief Stop the demo, whatever it was doing. */
+/** @brief Stop both demos, whatever either was doing. */
 void stop_pipelines() {
   kws::setInferenceRunning(false);
   kws::setWaveformStreaming(false);
+  vision::setInferenceRunning(false);
+  vision::setPreviewStreaming(false);
 }
 
 /**
@@ -97,6 +100,7 @@ void stop_pipelines() {
 void on_model_loaded(const model::Loaded& loaded) {
   if (!loaded.valid) {
     kws::setModel(nullptr, kws::ModelParameters());
+    vision::setModel(nullptr, vision::ModelParameters());
     Serial.print(kLogPrefix);
     Serial.println(" nothing is in the Akida fabric now");
     return;
@@ -111,6 +115,14 @@ void on_model_loaded(const model::Loaded& loaded) {
       parameters.unknownClass = loaded.unknownClass;
       parameters.mfccFullScale = loaded.mfccFullScale;
       ready = kws::setModel(&g_runtime, parameters);
+      vision::setModel(nullptr, vision::ModelParameters());
+      break;
+    }
+    case model::App::Vision: {
+      vision::ModelParameters parameters;
+      parameters.classCount = loaded.classCount;
+      ready = vision::setModel(&g_runtime, parameters);
+      kws::setModel(nullptr, kws::ModelParameters());
       break;
     }
   }
@@ -129,7 +141,7 @@ void on_model_loaded(const model::Loaded& loaded) {
 }
 
 /**
- * @brief Show a model transfer on the LED and keep audio out of its way.
+ * @brief Show a model transfer on the LED and keep both demos out of its way.
  *
  * @param busy  True while a transfer is running.
  */
@@ -174,6 +186,9 @@ void on_deploy(model::App app, bool running) {
     case model::App::Keyword:
       kws::setInferenceRunning(true);
       break;
+    case model::App::Vision:
+      vision::setInferenceRunning(true);
+      break;
   }
 }
 
@@ -187,6 +202,9 @@ void on_stream(model::App app, bool streaming) {
   switch (app) {
     case model::App::Keyword:
       kws::setWaveformStreaming(streaming);
+      break;
+    case model::App::Vision:
+      vision::setPreviewStreaming(streaming);
       break;
   }
 }
@@ -218,6 +236,38 @@ void on_detection(const kws::Detection& detection) {
   Serial.print(kLogPrefix);
   Serial.print(" keyword=");
   Serial.println(kws::classLabel(detection.classIndex));
+}
+
+/**
+ * @brief Tell the phone a person has been seen, and the LED every frame.
+ *
+ * The phone is sent a detection and nothing else, the way it is sent a keyword
+ * rather than every block of audio. The LED follows each frame instead, which
+ * costs nothing and is what makes a person register at once.
+ *
+ * @param detection  Class and score the pipeline decided on.
+ */
+void on_person(const vision::Detection& detection) {
+  if (detection.person) {
+    device::flashDetection();
+  }
+  if (!detection.triggered) {
+    return;
+  }
+  protocol::sendDetection(vision::classLabel(detection.classIndex),
+                          detection.confidence);
+  Serial.print(kLogPrefix);
+  Serial.print(" person confidence=");
+  Serial.println(detection.confidence, 2);
+}
+
+/**
+ * @brief Send the image the vision model just scored.
+ *
+ * @param pixels  The model's own input, in grayscale.
+ */
+void on_preview(const uint8_t* pixels) {
+  protocol::offerPreview(pixels, vision::kFrameWidth, vision::kFrameHeight);
 }
 
 /** @brief Follow the connection on the LED and stop work on a disconnect. */
@@ -288,6 +338,14 @@ void setup() {
   }
   kws::setHandlers(on_waveform, on_detection);
 
+  if (!vision::begin()) {
+    // Keyword spotting has no use for the camera, so the board carries on with
+    // that alone rather than with nothing.
+    Serial.print(kLogPrefix);
+    Serial.println(" camera did not answer, human detection is unavailable");
+  }
+  vision::setHandlers(on_person, on_preview);
+
   if (!BLE.begin()) {
     device::setLedMode(device::LedMode::Failed);
     Serial.print(kLogPrefix);
@@ -322,10 +380,12 @@ void loop() {
   BLE.poll();
   track_connection();
   protocol::poll();
+  protocol::pollPreview();
   model::poll();
   device::updateLed();
 
   if (!model::transferInProgress()) {
     kws::poll();
+    vision::poll();
   }
 }

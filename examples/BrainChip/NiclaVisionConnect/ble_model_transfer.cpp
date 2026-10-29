@@ -14,10 +14,10 @@ namespace {
 
 // The BB15 flash slot each application's model is stored in, in the library's
 // own slot format, so 01_SpiLinkTest lists it and 02_ModelFlasher overwrites
-// it cleanly. Keyword spotting takes slot 2, where 02_ModelFlasher keeps its
-// keyword model, so the two sketches replace each other's keyword model and
-// nothing else.
-constexpr uint8_t kAppSlots[kAppCount] = {2u};
+// it cleanly. Each application takes the slot where 02_ModelFlasher keeps the
+// model of the same kind, keyword spotting slot 2 and human detection slot 1,
+// so the two sketches replace each other's models and nothing else.
+constexpr uint8_t kAppSlots[kAppCount] = {2u, 1u};
 
 // What this sketch adds to the library's slot header: the phone's description
 // of the model and its program info. It sits one page into the header sector,
@@ -80,6 +80,7 @@ constexpr size_t kMaxShapeDimensions = 3u;
 // application a model belongs to, because it is the property that decides
 // which pipeline can feed it.
 constexpr uint32_t kKeywordInputShape[kMaxShapeDimensions] = {49u, 10u, 1u};
+constexpr uint32_t kVisionInputShape[kMaxShapeDimensions] = {96u, 96u, 3u};
 
 constexpr const char* kLogPrefix = "[NiclaVisionConnect]";
 
@@ -455,6 +456,10 @@ bool appForInputShape(const uint32_t* shape, App* app) {
     *app = App::Keyword;
     return true;
   }
+  if (memcmp(shape, kVisionInputShape, sizeof(kVisionInputShape)) == 0) {
+    *app = App::Vision;
+    return true;
+  }
   return false;
 }
 
@@ -468,6 +473,8 @@ const char* appName(App app) {
   switch (app) {
     case App::Keyword:
       return "keyword";
+    case App::Vision:
+      return "vision";
   }
   return "unknown";
 }
@@ -1363,19 +1370,23 @@ bool readInstalledModel(App app) {
   return true;
 }
 
+// A blank input as large as the largest application's. It is const so that it
+// stays in flash: the heap left beside the camera's capture buffers cannot be
+// relied on to lend 27 kB in one piece.
+const uint8_t kBlankInput[kVisionInputShape[0] * kVisionInputShape[1] *
+                          kVisionInputShape[2]] = {};
+
 /**
  * @brief Run one inference on a blank input, to prove the model really runs.
  *
- * The input is sized from the program the engine now holds, which is what it
- * reads, rather than from what the phone said.
+ * Only called once the program has been checked against its slot's input
+ * shape, which is one of the applications', so kBlankInput covers it.
  *
  * @return What the runtime reported.
  */
 cbb15::Status modelInfers() {
-  const uint32_t elements = shapeVolume(g_runtime->programInfo().input_dims());
-  std::unique_ptr<uint8_t[]> blank(new uint8_t[elements]());
   cbb15::InferenceResult result;
-  return g_runtime->infer(blank.get(), result);
+  return g_runtime->infer(kBlankInput, result);
 }
 
 /**

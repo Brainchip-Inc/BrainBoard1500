@@ -17,10 +17,11 @@ constexpr size_t kMaxNameLength = 64u;
  */
 enum class App : uint8_t {
   Keyword = 0,
+  Vision = 1,
 };
 
 /** @brief Number of demos, and so of flash slots this sketch writes. */
-constexpr size_t kAppCount = 1u;
+constexpr size_t kAppCount = 2u;
 
 /** @brief What one slot holds, as the application list needs to describe it. */
 struct Installed {

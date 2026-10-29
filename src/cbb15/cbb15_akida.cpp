@@ -201,8 +201,10 @@ Status Akida::run(const uint8_t* input, const int32_t* label,
   if (!drain()) {
     return Status::FetchTimeout;
   }
-  if (slot_ > 0) {
-    // Cheap (a few register writes): keeps the AKD1500 flash reads valid.
+  // Cheap (a few register writes): keeps the AKD1500 flash reads valid. Not
+  // for a multi-pass program: it reads its passes from flash on every job, and
+  // reconfiguring the SPI master between its jobs stalls the next one.
+  if (slot_ > 0 && info_.number_of_passes() == 1) {
     board_->applyFlashRuntimeProfile();
   }
   const akida::Shape dims = info_.input_dims();
@@ -310,7 +312,7 @@ Status Akida::updateStreamInput(const uint8_t* input) {
   if (!streaming_ || input == nullptr) {
     return Status::InvalidArgument;
   }
-  if (slot_ > 0) {
+  if (slot_ > 0 && info_.number_of_passes() == 1) {
     board_->applyFlashRuntimeProfile();
   }
   board_->driver()->write(streamInput_, input, inputBytes());

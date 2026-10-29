@@ -8,6 +8,7 @@
 #include "ble_model_transfer.h"
 #include "device_status.h"
 #include "kws_pipeline.h"
+#include "vision_pipeline.h"
 
 namespace protocol {
 
@@ -38,6 +39,9 @@ struct AppDescriptor {
 constexpr AppDescriptor kApps[] = {
     {model::App::Keyword, "keyword", "Keyword Spotting",
      "Voice-activated wake word detection using microphone input", "49x10x1"},
+    {model::App::Vision, "vision", "Vision Human Detection",
+     "Person detection from the camera using the Akida vision model",
+     "96x96x3"},
 };
 constexpr size_t kAppDescriptorCount = sizeof(kApps) / sizeof(kApps[0]);
 
@@ -67,6 +71,27 @@ constexpr uint8_t kBinaryMagic = 0x42u;
 constexpr uint8_t kWaveCommand = 0x0Cu;
 constexpr size_t kWaveHeaderBytes = 6u;
 
+// The camera preview rides the same characteristic, told apart by its command
+// byte. An image needs more than one frame, so each carries the offset of its
+// own pixels and the geometry they belong to.
+constexpr uint8_t kPreviewCommand = 0x0Du;
+constexpr size_t kPreviewHeaderBytes = 10u;
+constexpr uint8_t kPreviewGrayscale = 0u;
+constexpr size_t kMaxNotificationBytes = 239u;
+constexpr size_t kPreviewChunkBytes =
+    kMaxNotificationBytes - kPreviewHeaderBytes;
+
+// Largest image the preview buffer holds, which is the vision model's input.
+constexpr size_t kMaxPreviewBytes =
+    static_cast<size_t>(vision::kFrameWidth) * vision::kFrameHeight;
+
+// Notifications sent per call. Each one waits for the controller to have room,
+// so this is what bounds how long a slow link can hold the sketch's loop.
+constexpr size_t kPreviewChunksPerPoll = 4u;
+
+// How often the preview reports what it is actually achieving.
+constexpr uint32_t kPreviewReportMs = 5000u;
+
 constexpr size_t kMaxCommandBytes = 248u;
 constexpr size_t kCommandQueueDepth = 4u;
 constexpr size_t kFrameBytes = 160u;
@@ -87,6 +112,21 @@ volatile uint8_t g_queue_head = 0u;
 volatile uint8_t g_queue_tail = 0u;
 
 uint16_t g_wave_sequence = 0u;
+uint16_t g_preview_sequence = 0u;
+
+// The image being sent, held whole so that the camera overwriting its own
+// buffer cannot tear the one in flight.
+uint8_t g_preview[kMaxPreviewBytes];
+size_t g_preview_bytes = 0u;
+size_t g_preview_sent = 0u;
+uint8_t g_preview_width = 0u;
+uint8_t g_preview_height = 0u;
+bool g_preview_active = false;
+
+uint32_t g_preview_frames = 0u;
+uint32_t g_preview_dropped = 0u;
+uint32_t g_preview_wire_bytes = 0u;
+uint32_t g_preview_reported_ms = 0u;
 
 /** @brief One tunable the phone can read and write, and how it is carried. */
 struct ConfigParameter {
@@ -196,6 +236,8 @@ const char* classLabel(model::App app, uint8_t classIndex) {
   switch (app) {
     case model::App::Keyword:
       return kws::classLabel(classIndex);
+    case model::App::Vision:
+      return vision::classLabel(classIndex);
   }
   return "";
 }
@@ -483,13 +525,46 @@ void onRxWritten(BLEDevice, BLECharacteristic characteristic) {
   if (next == g_queue_tail) {
     return;
   }
+  const uint8_t* value = characteristic.value();
   size_t length = static_cast<size_t>(characteristic.valueLength());
   if (length > kMaxCommandBytes - 1u) {
     length = kMaxCommandBytes - 1u;
   }
-  memcpy(g_queue[g_queue_head], characteristic.value(), length);
+  // The app ends every command with a carriage return, which would otherwise
+  // become part of the last field: "5:keyword\r" names no application.
+  while (length > 0u &&
+         (value[length - 1u] == '\r' || value[length - 1u] == '\n')) {
+    --length;
+  }
+  memcpy(g_queue[g_queue_head], value, length);
   g_queue[g_queue_head][length] = '\0';
   g_queue_head = next;
+}
+
+/** @brief Say what the preview is achieving, every few seconds. */
+void reportPreviewRate() {
+  const uint32_t now = millis();
+  if (g_preview_reported_ms == 0u) {
+    g_preview_reported_ms = now;
+    return;
+  }
+  const uint32_t elapsed = now - g_preview_reported_ms;
+  if (elapsed < kPreviewReportMs) {
+    return;
+  }
+
+  Serial.print("[preview] fps=");
+  Serial.print(g_preview_frames * 1000.0f / elapsed);
+  Serial.print(" bytes_per_s=");
+  Serial.print(
+      static_cast<unsigned long>(g_preview_wire_bytes * 1000u / elapsed));
+  Serial.print(" dropped=");
+  Serial.println(static_cast<unsigned long>(g_preview_dropped));
+
+  g_preview_frames = 0u;
+  g_preview_dropped = 0u;
+  g_preview_wire_bytes = 0u;
+  g_preview_reported_ms = now;
 }
 
 }  // namespace
@@ -527,6 +602,68 @@ void sendDetection(const char* label, float confidence) {
   sendSingle(kCmdDeployStart, value);
 }
 
+void offerPreview(const uint8_t* pixels, uint8_t width, uint8_t height) {
+  const size_t bytes = static_cast<size_t>(width) * height;
+  if (bytes == 0u || bytes > kMaxPreviewBytes) {
+    return;
+  }
+  // An image already going out is finished rather than abandoned, so every
+  // image the phone receives is whole. This one is dropped, and the next turn
+  // takes whatever the camera has by then, which is the newest there is.
+  if (g_preview_active || !connected()) {
+    ++g_preview_dropped;
+    return;
+  }
+
+  memcpy(g_preview, pixels, bytes);
+  g_preview_bytes = bytes;
+  g_preview_sent = 0u;
+  g_preview_width = width;
+  g_preview_height = height;
+  g_preview_active = true;
+}
+
+void pollPreview() {
+  if (!g_preview_active) {
+    return;
+  }
+  if (!connected()) {
+    g_preview_active = false;
+    return;
+  }
+
+  uint8_t frame[kPreviewHeaderBytes + kPreviewChunkBytes];
+  frame[0] = kBinaryMagic;
+  frame[1] = kPreviewCommand;
+  frame[2] = static_cast<uint8_t>(g_preview_sequence & 0xFFu);
+  frame[3] = static_cast<uint8_t>((g_preview_sequence >> 8) & 0xFFu);
+  frame[6] = g_preview_width;
+  frame[7] = g_preview_height;
+  frame[8] = kPreviewGrayscale;
+  frame[9] = 0u;
+
+  for (size_t sent = 0u;
+       sent < kPreviewChunksPerPoll && g_preview_sent < g_preview_bytes;
+       ++sent) {
+    const size_t remaining = g_preview_bytes - g_preview_sent;
+    const size_t chunk =
+        remaining < kPreviewChunkBytes ? remaining : kPreviewChunkBytes;
+    frame[4] = static_cast<uint8_t>(g_preview_sent & 0xFFu);
+    frame[5] = static_cast<uint8_t>((g_preview_sent >> 8) & 0xFFu);
+    memcpy(&frame[kPreviewHeaderBytes], &g_preview[g_preview_sent], chunk);
+    g_tx.writeValue(frame, static_cast<int>(kPreviewHeaderBytes + chunk));
+    g_preview_sent += chunk;
+    g_preview_wire_bytes += kPreviewHeaderBytes + chunk;
+  }
+
+  if (g_preview_sent >= g_preview_bytes) {
+    g_preview_active = false;
+    ++g_preview_sequence;
+    ++g_preview_frames;
+  }
+  reportPreviewRate();
+}
+
 void sendWaveform(const int16_t* values, uint16_t count) {
   uint8_t frame[kWaveHeaderBytes + kws::kWaveformValues * sizeof(int16_t)];
   frame[0] = kBinaryMagic;
@@ -546,5 +683,7 @@ void sendWaveform(const int16_t* values, uint16_t count) {
   g_tx.writeValue(frame,
                   static_cast<int>(kWaveHeaderBytes + count * sizeof(int16_t)));
 }
+
+bool connected() { return BLE.connected() && g_tx.subscribed(); }
 
 }  // namespace protocol

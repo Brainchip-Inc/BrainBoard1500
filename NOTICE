@@ -63,3 +63,13 @@ firmware, which is derived from Arm's ML-KWS-for-MCU.
 Copyright (C) 2018 Arm Limited or its affiliates. All rights reserved.
 Licensed under the Apache License, Version 2.0 (see LICENSE). mfcc.h carries
 the attribution.
+
+The human detection model packages
+(examples/BrainChip/NiclaVisionConnect/models/brainboard1500_nicla_vision_human_detection_allnps.zip
+and brainboard1500_nicla_vision_human_detection_hwpr.zip)
+are the BrainChip Dev Hub visual wake words model
+(akida1/model_zoo/vww/pretrained_models/akidanet_vww_qat.fbz in
+https://github.com/Brainchip-Inc/brainchip_devhub), mapped for the AKD1500
+with akida 2.19.3 in two map modes, unmodified otherwise.
+Copyright 2025 Brainchip Holdings Ltd.
+Licensed under the Apache License, Version 2.0.
