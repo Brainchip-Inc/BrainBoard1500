@@ -34,9 +34,10 @@ be sent once, and each application has its own slot, so sending one leaves the
 other alone.
 
 The keyword spotting package is
-`models/brainboard1500_nicla_vision_keyword_spotting.zip`. It is BrainChip's
-AkidaTag keyword spotting model, the same model as `NiclaVisionKeywordSpotting`'s
-`kws.h`, mapped for the AKD1500 with Akida 2.19.3 in
+`models/brainboard1500_nicla_vision_keyword_spotting.zip`, and the app names
+its model `DS_CNN`, after its architecture. It is BrainChip's AkidaTag keyword
+spotting model, the same model as `NiclaVisionKeywordSpotting`'s `kws.h`,
+mapped for the AKD1500 with Akida 2.19.3 in
 `akida.MapMode.HwPr`: the package's two halves together are byte for byte that
 header's program. It was made with
 `tools/bb15_connect_package.py`, from a directory holding the AkidaTag firmware's
@@ -46,7 +47,7 @@ header's program. It was made with
 
 ```bash
 python <repository>/tools/bb15_connect_package.py model_files/kws/akida_model.fbz \
-    --name brainboard1500_nicla_vision_keyword_spotting \
+    --name brainboard1500_nicla_vision_keyword_spotting --model-name DS_CNN \
     --mfcc-fs 123.56967163085938 --silence-class 10 --unknown-class 11 \
     --map-mode HwPr --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 ```
@@ -60,9 +61,10 @@ other later, and the board swaps to it. Nothing is rebuilt.
 | `models/brainboard1500_nicla_vision_human_detection_allnps.zip` | `AllNps` | 1 | 209,632 B | 15.7 ms, 5.5 ms of it in the AKD1500 |
 | `models/brainboard1500_nicla_vision_human_detection_hwpr.zip` | `HwPr` | 3 | 377,600 B | 44.8 ms, 34.5 ms of it in the AKD1500 |
 
-Both are the BrainChip Dev Hub visual wake words model, the same model as
-`03_PersonDetection`'s `vww.h`, mapped for the AKD1500 with Akida 2.19.3. On
-the bench, both gave the same class and scores as the akida software model for
+Both are the BrainChip Dev Hub visual wake words model, an AkidaNet with a
+0.25 width multiplier, so the app names either one `AkidaNet 0.25`. It is the
+same model as `03_PersonDetection`'s `vww.h`, mapped for the AKD1500 with Akida
+2.19.3. On the bench, both gave the same class and scores as the akida software model for
 every image tried. The `AllNps` package's two halves together are byte for byte
 `vww.h`'s program.
 
@@ -80,18 +82,22 @@ Both were made with `tools/bb15_connect_package.py`, from the Dev Hub's
 ```bash
 python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
     --name brainboard1500_nicla_vision_human_detection_allnps \
+    --model-name "AkidaNet 0.25" \
     --map-mode AllNps --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
     --name brainboard1500_nicla_vision_human_detection_hwpr \
+    --model-name "AkidaNet 0.25" \
     --map-mode HwPr --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 ```
 
 Every zip is reproducible: the same model gives the same bytes.
 
-The archive holds `info.yaml` and a `<name>_program_info.bin` /
-`<name>_program_data.bin` pair, which is the shape the app reads. `mfcc_fs`,
-`silence_class` and `unknown_class` in `info.yaml` are the keyword model's own,
-and the pipeline refuses a keyword model without `mfcc_fs`.
+The archive holds `info.yaml` and a `<model name>_program_info.bin` /
+`<model name>_program_data.bin` pair, which is the shape the app reads. The app
+names the model after that prefix, the board records it, and `app` in
+`info.yaml` must match it. `mfcc_fs`, `silence_class` and `unknown_class` in
+`info.yaml` are the keyword model's own, and the pipeline refuses a keyword
+model without `mfcc_fs`.
 
 **Which application a model is for is decided by the input shape in
 `info.yaml`**, which the app writes before it sends any bytes:
