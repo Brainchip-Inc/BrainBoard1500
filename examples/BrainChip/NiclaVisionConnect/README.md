@@ -35,11 +35,11 @@ other alone.
 
 The keyword spotting package is
 `models/brainboard1500_nicla_vision_keyword_spotting.zip`. It is BrainChip's
-spark keyword spotting model, the same model as `NiclaVisionKeywordSpotting`'s
-`spark_kws.h`, mapped for the AKD1500 with Akida 2.19.3 in
+AkidaTag keyword spotting model, the same model as `NiclaVisionKeywordSpotting`'s
+`kws.h`, mapped for the AKD1500 with Akida 2.19.3 in
 `akida.MapMode.HwPr`: the package's two halves together are byte for byte that
 header's program. It was made with
-`tools/bb15_connect_package.py`, from a directory holding spark's
+`tools/bb15_connect_package.py`, from a directory holding the AkidaTag firmware's
 `model_files/kws/akida_model.fbz` (SHA-256
 `a1a6e2d0755decfccbf3d8165ffd9f949365bc3160aa0dbb12d85123df052abf`), with
 `akida==2.19.3` installed:

@@ -9,17 +9,18 @@ It recognises ten keywords: `down`, `go`, `left`, `no`, `off`, `on`, `right`,
 `stop`, `up`, `yes`. The model also reports `silence` and `unknown`, which are
 transmitted but can never trigger a detection.
 
-The signal pipeline is the one BrainChip's spark firmware runs on the AkidaTag,
-value for value: the same DC blocker, 960-sample blocks, RMS speech gate, MFCC
-front end, spectrogram ring, inference period, smoothing, debounce and
-chiming. The one exception is the speech gate's RMS threshold, which is set
-from this board's measured noise floor; "Microphone gain" below explains why.
+The signal pipeline is the one BrainChip's AkidaTag firmware runs on the
+AkidaTag, value for value: the same DC blocker, 960-sample blocks, RMS speech
+gate, MFCC front end, spectrogram ring, inference period, smoothing, debounce
+and chiming. The one exception is the speech gate's RMS threshold, which is
+set from this board's measured noise floor; "Microphone gain" below explains
+why.
 This is a different model and front end from the library's own
 `04_KeywordSpotting`, which runs the Dev Hub speech commands model.
 
 ## The model
 
-`spark_kws.h` is BrainChip's spark keyword spotting model, the same model the
+`kws.h` is BrainChip's AkidaTag keyword spotting model, the same model the
 AkidaTag runs, mapped for the AKD1500 with Akida 2.19.3. It is pushed into the
 AKD1500 over SPI at start-up (slot 0), so the demo writes nothing to the BB15
 flash and needs no flasher. The program is 54,344 bytes and is compiled into
@@ -32,8 +33,8 @@ single pass in that mode, with every layer on the same neural processors as
 Akida's default `MapMode.AllNps`, so the program is byte for byte the same in
 either mode.
 
-The source model is spark's `model_files/kws/akida_model.fbz`, saved by Akida
-2.17.0, SHA-256
+The source model is the AkidaTag firmware's `model_files/kws/akida_model.fbz`,
+saved by Akida 2.17.0, SHA-256
 `a1a6e2d0755decfccbf3d8165ffd9f949365bc3160aa0dbb12d85123df052abf`. Akida
 2.19.3 reads it unchanged, and its software outputs on 256 test inputs are
 identical to Akida 2.17.0's. The header was made with the library's own
@@ -45,7 +46,7 @@ Python, from a directory holding that file at `model_files/kws/`, with
 PYTHONPATH=<repository>/tools python -c '
 import akida, export_model
 export_model.export(
-    "model_files/kws/akida_model.fbz", "spark_kws",
+    "model_files/kws/akida_model.fbz", "kws",
     "<repository>/examples/BrainChip/NiclaVisionKeywordSpotting",
     labels="down,go,left,no,off,on,right,stop,up,yes,silence,unknown".split(","),
     mode=akida.MapMode.HwPr, notes=["Map mode: HwPr."])'
@@ -133,13 +134,13 @@ From there everything runs on the STM32H747 and the AKD1500:
 | MFCC, 3 frames per 60 ms block | STM32H747 |
 | classification, every third block | AKD1500, through `cbb15::Akida` |
 
-The front end matches spark: 16 kHz, a 320-sample hop, a 640-sample frame, a
-640-point real FFT, 40 mel bins from 20 Hz to 4000 Hz, and 49 frames of 10
-coefficients. The gating, smoothing, debounce and chiming defaults are spark's,
-hard-coded rather than configurable.
+The front end matches the AkidaTag firmware: 16 kHz, a 320-sample hop, a
+640-sample frame, a 640-point real FFT, 40 mel bins from 20 Hz to 4000 Hz, and
+49 frames of 10 coefficients. The gating, smoothing, debounce and chiming
+defaults are the AkidaTag firmware's, hard-coded rather than configurable.
 
 `cbb15::Akida::infer()` returns the potentials already dequantized, which is
-what spark softmaxes, so the sketch softmaxes them directly.
+what the AkidaTag firmware softmaxes, so the sketch softmaxes them directly.
 
 `mfcc.{h,cpp}` and `kiss_fft*.{c,h}` are the same files as in
 `NiclaVisionConnect`. They are board independent, and keeping a copy in each
@@ -160,7 +161,7 @@ everything the DFSDM produces, so speech scales with it exactly, while about
 250 counts of the quiet-room floor are fixed in the board and do not move with
 the gain. Going from gain 8 to 12 made speech four times larger and the floor
 about 2.2 times larger. The gate has to hold its ratio to the noise rather than
-to speech, so it is spark's 550 doubled, 1100.
+to speech, so it is the AkidaTag firmware's 550 doubled, 1100.
 
 The floor belongs to the room and the moment rather than to the board, so
 `kRmsThreshold` is worth re-measuring wherever the demo is set up. If a quieter

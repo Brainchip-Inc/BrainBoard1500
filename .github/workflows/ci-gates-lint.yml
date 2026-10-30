@@ -150,8 +150,8 @@ jobs:
           # Pinned on purpose. Different clang-format majors format differently,
           # so an unpinned version turns the next GitHub runner image bump into a
           # mystery failure on code nobody touched. This matches the version
-          # Brainchip-Inc/spark pins, so the two repositories agree. Bump this
-          # when spark moves, after re-checking BrainChip's files against the
+          # Brainchip-Inc/AkidaTag pins, so the two repositories agree. Bump this
+          # when AkidaTag moves, after re-checking BrainChip's files against the
           # new version.
           CLANG_FORMAT_VERSION: "22.1.1"
         run: |

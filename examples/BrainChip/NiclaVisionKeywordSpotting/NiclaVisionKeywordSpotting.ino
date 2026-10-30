@@ -2,8 +2,8 @@
 #include <BrainBoard1500.h>
 #include <PDM.h>
 
+#include "kws.h"
 #include "mfcc.h"
-#include "spark_kws.h"
 
 #ifndef ARDUINO_NICLA_VISION
 #error "NiclaVisionKeywordSpotting requires Arduino Nicla Vision."
@@ -30,8 +30,8 @@ constexpr size_t kPdmBufferSamples = kPdmBufferBytes / sizeof(int16_t);
 // the feature front end at about the level the model's training corpus holds.
 constexpr int kPdmGain = 12;
 
-// spark's values: rates from its source/Kconfig, the rest from
-// source/core/common/kws_config.c.
+// The AkidaTag firmware's values: rates from its source/Kconfig, the rest
+// from source/core/common/kws_config.c.
 constexpr uint32_t kSampleRateHz = 16000u;
 constexpr uint16_t kMfccHopSamples = 320u;
 constexpr uint16_t kBlockSamples = 960u;
@@ -43,12 +43,13 @@ constexpr uint8_t kInferencePeriodBlocks = 3u;
 // Reported like any other class, but neither can trigger a detection.
 constexpr uint8_t kSilenceClass = 10u;
 constexpr uint8_t kUnknownClass = 11u;
-// Scaled from spark's 550 by the measured noise floor rather than by kPdmGain.
-// The gain is a right shift on every sample, so speech rose fourfold with it,
-// but the floor only rose about 2.2 times, 293 to 650, because roughly 250 of
-// those counts are fixed in the board rather than acoustic. Twice spark's value
-// is the scaling the room supports; four times was set for noise that never
-// arrived, and it clipped the onset off every word.
+// Scaled from the AkidaTag firmware's 550 by the measured noise floor rather
+// than by kPdmGain. The gain is a right shift on every sample, so speech rose
+// fourfold with it, but the floor only rose about 2.2 times, 293 to 650,
+// because roughly 250 of those counts are fixed in the board rather than
+// acoustic. Twice the AkidaTag firmware's value is the scaling the room
+// supports; four times was set for noise that never arrived, and it clipped
+// the onset off every word.
 constexpr uint16_t kRmsThreshold = 1100u;
 constexpr uint16_t kSpeechActiveTimeMs = 1300u;
 constexpr uint16_t kSmoothingAlphaQ15 = 22938u;
@@ -58,20 +59,21 @@ constexpr float kScoreThreshold = 0.50f;
 constexpr uint16_t kDebounceMs = 300u;
 constexpr uint8_t kChimingThreshold = 3u;
 
-// Divides an MFCC coefficient down to the model's uint8 input, as spark's
-// do_inference() does. The value is the model's own, from its info.yaml, and is
-// not a tuning knob.
+// Divides an MFCC coefficient down to the model's uint8 input, as the AkidaTag
+// firmware's do_inference() does. The value is the model's own, from its
+// info.yaml, and is not a tuning knob.
 constexpr float kMfccFullScale = 123.56967163085938f;
 
-// spark clears a float spectrogram, and float zero quantizes to 128, so a
-// cleared ring holds 128 to feed the model the bytes spark would.
+// The AkidaTag firmware clears a float spectrogram, and float zero quantizes to
+// 128, so a cleared ring holds 128 to feed the model the bytes the AkidaTag
+// firmware would.
 constexpr uint8_t kClearedFeature = 128u;
 
 // Slot 0 pushes the model over SPI, so the demo needs no flasher and leaves
 // the BB15 flash slots alone.
 constexpr uint8_t kModelSlot = 0u;
 
-// spark's DC blocker coefficient, from its dc_block_process().
+// The AkidaTag firmware's DC blocker coefficient, from its dc_block_process().
 constexpr int32_t kDcBlockAlphaQ15 = 32700;
 
 // One min/max pair per 10 samples of the block.
@@ -114,7 +116,8 @@ constexpr uint8_t kStatusMfccInitFailed = 0x81u;
 constexpr uint8_t kStatusMicrophoneFailed = 0x82u;
 constexpr uint8_t kStatusAkidaFailed = 0x83u;
 
-// spark's kws_new_tags[], in the order the model's info.yaml gives.
+// The AkidaTag firmware's kws_new_tags[], in the order the model's info.yaml
+// gives.
 constexpr const char* kClassLabels[kClassCount] = {
     "down",  "go",   "left", "no",  "off",     "on",
     "right", "stop", "up",   "yes", "silence", "unknown"};
@@ -133,7 +136,10 @@ struct AudioBlock {
   bool speechActive = false;
 };
 
-/** @brief spark's voice activity state, its SPEECH_IDLE and SPEECH_ACTIVE. */
+/**
+ * @brief The AkidaTag firmware's voice activity state, its SPEECH_IDLE and
+ *        SPEECH_ACTIVE.
+ */
 enum class SpeechState : uint8_t {
   Idle,
   Active,
@@ -160,7 +166,10 @@ struct Classifier {
   uint16_t inferMs = 0u;
 };
 
-/** @brief Running state of spark's first-order DC blocking high-pass. */
+/**
+ * @brief Running state of the AkidaTag firmware's first-order DC blocking
+ *        high-pass.
+ */
 struct DcBlockState {
   int32_t previousInput = 0;
   int32_t previousOutput = 0;
@@ -172,8 +181,8 @@ int16_t g_pdm_samples[kPdmBufferSamples];
 // Written by the PDM interrupt, read by loop().
 volatile bool g_pdm_ready = false;
 volatile uint16_t g_pdm_overruns = 0u;
-// spark's mfcc_process_input() layout: [0, hop) is the previous block's last
-// hop, [hop, hop + block) is this one.
+// The AkidaTag firmware's mfcc_process_input() layout: [0, hop) is the previous
+// block's last hop, [hop, hop + block) is this one.
 int16_t g_mfcc_input[kMfccHopSamples + kBlockSamples];
 int16_t g_waveform[2u * kWaveformPoints];
 // Held quantized, the only form the model uses. g_spectrogram_index is the
@@ -184,12 +193,13 @@ uint8_t g_new_features[kMfccFramesPerBlock * kSpectrogramCoefficients];
 uint8_t g_new_frame_count = 0u;
 SpeechState g_speech_state = SpeechState::Idle;
 uint32_t g_speech_started_ms = 0u;
-// The model input, unrolled oldest frame first the way spark builds it.
+// The model input, unrolled oldest frame first the way the AkidaTag firmware
+// builds it.
 uint8_t g_model_input[kSpectrogramFrames * kSpectrogramCoefficients];
 Classifier g_classifier;
 cbb15::Board g_board;
 cbb15::Akida g_runtime;
-const cbb15::Model g_model = cbb15::models::sparkKwsWithProgram();
+const cbb15::Model g_model = cbb15::models::kwsWithProgram();
 // Why BB15 did not come up, for the setup log.
 const char* g_akida_stage = "";
 cbb15::Status g_akida_status = cbb15::Status::Ok;
@@ -455,7 +465,8 @@ PacketType poll_host_command() {
 }
 
 /**
- * @brief Apply spark's DC blocking high-pass to captured samples in place.
+ * @brief Apply the AkidaTag firmware's DC blocking high-pass to captured
+ *        samples in place.
  *
  * The filter state carries between calls, so a buffer boundary does not reset
  * it.
@@ -518,8 +529,8 @@ uint8_t quantize_feature(float coefficient) {
 }
 
 /**
- * @brief Throw away the part-built model input, as spark does when it gives up
- *        on an utterance.
+ * @brief Throw away the part-built model input, as the AkidaTag firmware does
+ *        when it gives up on an utterance.
  */
 void clear_spectrogram() {
   memset(g_spectrogram, kClearedFeature, sizeof(g_spectrogram));
@@ -555,8 +566,8 @@ uint16_t extract_features() {
 }
 
 /**
- * @brief Numerically stable softmax in place, spark's softmax() from
- *        source/core/common/inference/infer_utils.c.
+ * @brief Numerically stable softmax in place, the AkidaTag firmware's softmax()
+ *        from source/core/common/inference/infer_utils.c.
  *
  * @param values  kClassCount values, replaced by the normalized result.
  */
@@ -578,10 +589,12 @@ void softmax_in_place(float* values) {
 }
 
 /**
- * @brief Say whether spark's post-detection cooldown has expired.
+ * @brief Say whether the AkidaTag firmware's post-detection cooldown has
+ *        expired.
  *
- * From is_kws_debounce_complete() in spark's main.cpp. spark skips its whole
- * front end while the cooldown runs, so this gates a block before its RMS.
+ * From is_kws_debounce_complete() in the AkidaTag firmware's main.cpp. The
+ * AkidaTag firmware skips its whole front end while the cooldown runs, so this
+ * gates a block before its RMS.
  *
  * @return True when audio may be processed again.
  */
@@ -593,8 +606,8 @@ bool debounce_complete() {
 /**
  * @brief Clear the scores, counters and part-built model input.
  *
- * spark's reset_stale_inference_data(), called both when an utterance times
- * out and immediately after a detection.
+ * The AkidaTag firmware's reset_stale_inference_data(), called both when an
+ * utterance times out and immediately after a detection.
  */
 void reset_inference_state() {
   memset(g_classifier.smoothed, 0, sizeof(g_classifier.smoothed));
@@ -605,8 +618,9 @@ void reset_inference_state() {
 /**
  * @brief Copy the model input out of the ring, oldest frame first.
  *
- * spark unrolls its circular spectrogram as idx = (i + spectrogram_index) % 49
- * when it builds the tensor, and the write position is the oldest frame.
+ * The AkidaTag firmware unrolls its circular spectrogram as
+ * idx = (i + spectrogram_index) % 49 when it builds the tensor, and the write
+ * position is the oldest frame.
  */
 void build_model_input() {
   for (uint16_t frame = 0u; frame < kSpectrogramFrames; ++frame) {
@@ -619,10 +633,12 @@ void build_model_input() {
 }
 
 /**
- * @brief Apply spark's decision logic to one set of smoothed scores.
+ * @brief Apply the AkidaTag firmware's decision logic to one set of smoothed
+ *        scores.
  *
- * kws_post_processing() in spark's main.cpp. A class fires once it has held
- * above the score threshold for kChimingThreshold consecutive inferences.
+ * kws_post_processing() in the AkidaTag firmware's main.cpp. A class fires once
+ * it has held above the score threshold for kChimingThreshold consecutive
+ * inferences.
  */
 void apply_decision() {
   uint8_t triggered = kNoPrediction;
@@ -670,8 +686,8 @@ bool run_inference() {
     return false;
   }
 
-  // The runtime hands back dequantized potentials, which is what spark
-  // softmaxes.
+  // The runtime hands back dequantized potentials, which is what the AkidaTag
+  // firmware softmaxes.
   float scores[kClassCount];
   memcpy(scores, result.scores.data(), sizeof(scores));
   softmax_in_place(scores);
@@ -687,11 +703,13 @@ bool run_inference() {
 /**
  * @brief Decide whether this block's audio should reach the MFCC front end.
  *
- * spark's rule, from its audio_process_thread(). A loud block restarts the
- * timer, and a quiet one is still processed for kSpeechActiveTimeMs after the
- * last loud block, which is what captures the tail of a word.
+ * The AkidaTag firmware's rule, from its audio_process_thread(). A loud block
+ * restarts the timer, and a quiet one is still processed for
+ * kSpeechActiveTimeMs after the last loud block, which is what captures the
+ * tail of a word.
  *
- * @param rms  This block's RMS, taken after the DC blocker as spark does.
+ * @param rms  This block's RMS, taken after the DC blocker as the AkidaTag
+ *             firmware does.
  * @return True when the block should be turned into features.
  */
 bool gate_block(uint16_t rms) {

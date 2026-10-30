@@ -13,7 +13,7 @@
 
 namespace cbb15 {
 namespace models {
-namespace spark_kws_data {
+namespace kws_data {
 
 // Program info only (a copy of the first 544 bytes of the program).
 alignas(4) static const uint8_t info[545] =
@@ -1751,14 +1751,14 @@ static const char* const labels[12] = {
     "silence",
     "unknown"};
 
-}  // namespace spark_kws_data
+}  // namespace kws_data
 
 // For flash slots 1..4: the program data is read from the BB15 flash, so
 // the program array is not linked into the sketch.
-inline Model sparkKws() {
+inline Model kws() {
   Model m;
-  m.name = "spark_kws";
-  m.info = spark_kws_data::info;
+  m.name = "kws";
+  m.info = kws_data::info;
   m.infoSize = 544;
   m.blobSize = 54344;
   m.dataSize = 53800;
@@ -1768,15 +1768,15 @@ inline Model sparkKws() {
   m.inputWidth = 10;
   m.inputChannels = 1;
   m.outputCount = 12;
-  m.labels = spark_kws_data::labels;
+  m.labels = kws_data::labels;
   m.labelCount = 12;
   return m;
 }
 
 // Complete program: needed for slot 0 (SPI push) and by the model flasher.
-inline Model sparkKwsWithProgram() {
-  Model m = sparkKws();
-  m.blob = spark_kws_data::program;
+inline Model kwsWithProgram() {
+  Model m = kws();
+  m.blob = kws_data::program;
   return m;
 }
 

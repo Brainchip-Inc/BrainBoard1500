@@ -30,7 +30,7 @@ constexpr int kMfccFrameSamples = 640;
 /// Coefficients kept per frame, the model input's second dimension.
 constexpr int kMfccFeatures = 10;
 
-/// Mel filterbank bins, spark's `NUM_FBANK_BINS`.
+/// Mel filterbank bins, the AkidaTag firmware's `NUM_FBANK_BINS`.
 constexpr int kMfccFilterBankBins = 40;
 
 /**
