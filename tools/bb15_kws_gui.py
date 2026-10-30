@@ -47,7 +47,8 @@ DEVICE_ERRORS = {
 # The board field of the config packet.
 BOARD_NAMES = {1: "Nicla Voice", 2: "Nicla Vision"}
 
-# spark's kws_new_tags[], in the order the model's info.yaml gives.
+# The AkidaTag firmware's kws_new_tags[], in the order the model's info.yaml
+# gives.
 CLASS_LABELS = (
     "down",
     "go",
@@ -844,7 +845,8 @@ class KeywordSpottingWindow:
         self._canvas.coords(self._wave, *coordinates)
 
     def _set_speech_badge(self, active: bool) -> None:
-        """Show whether spark's speech gate is passing audio to the front end."""
+        """Show whether the AkidaTag firmware's speech gate is passing audio to the
+        front end."""
         wanted = "SPEECH" if active else "IDLE"
         if self._speech_badge.cget("text") == wanted:
             return

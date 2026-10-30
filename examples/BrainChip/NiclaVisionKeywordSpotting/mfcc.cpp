@@ -11,18 +11,20 @@
 
 namespace {
 
-// Configuration values from spark: `source/include/audio/mfcc.h` for the
-// filterbank size and mel range, `source/Kconfig` for the sample rate.
+// Configuration values from the AkidaTag firmware:
+// `source/include/audio/mfcc.h` for the filterbank size and mel range,
+// `source/Kconfig` for the sample rate.
 constexpr float kSampleRateHz = 16000.0f;
 constexpr int kMelLowFreqHz = 20;
 constexpr int kMelHighFreqHz = 4000;
 
-// spark defines its own pi rather than taking math.h's, so use its literals.
+// The AkidaTag firmware defines its own pi rather than taking math.h's, so use
+// its literals.
 constexpr double kTwoPi = 6.283185307179586476925286766559005;
 constexpr double kPi = kTwoPi / 2;
 
-// spark's create_mel_fbank() stops one bin short of the end, so the Nyquist
-// bin is computed and never scanned.
+// The AkidaTag firmware's create_mel_fbank() stops one bin short of the end, so
+// the Nyquist bin is computed and never scanned.
 constexpr int kPowerBins = kMfccFrameSamples / 2 + 1;
 constexpr int kScannedBins = kMfccFrameSamples / 2;
 
@@ -49,7 +51,7 @@ float g_mel_energies[kMfccFilterBankBins];
 float g_dct_matrix[kMfccFeatures * kMfccFilterBankBins];
 
 /**
- * @brief spark's mel scale.
+ * @brief The AkidaTag firmware's mel scale.
  *
  * @param frequency  Frequency in Hz.
  * @return The mel value.
@@ -72,7 +74,8 @@ void build_window() {
 /**
  * @brief Fill the DCT matrix used to turn log mel energies into coefficients.
  *
- * The cosine is evaluated in double and stored as float, as spark does.
+ * The cosine is evaluated in double and stored as float, as the AkidaTag
+ * firmware does.
  */
 void build_dct_matrix() {
   const float normalizer =
