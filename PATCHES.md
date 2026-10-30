@@ -37,4 +37,4 @@ BrainChip carries these changes to Neuromorphyx's own library code in
 
 | File | Change | Reason |
 |---|---|---|
-| `cbb15/cbb15_akida.cpp` | `Akida::run()` and `updateStreamInput()` re-apply the flash runtime profile before a job only when the program is single-pass | re-applying it disables and reconfigures the AKD1500's SPI master; a multi-pass program, such as one mapped with `HwPr`, reads each pass from flash on every job, so from a flash slot every job after the first timed out |
+| `cbb15/cbb15_akida.cpp` | `Akida::run()` and `updateStreamInput()` no longer re-apply the flash runtime profile before every job; it is still applied at start-up, around programming from a slot and after every use of the flash bridge | nothing between two jobs touches the AKD1500's SPI master, and re-applying the profile disables and reconfigures it; a multi-pass program, such as one mapped with `HwPr`, reads each pass from flash on every job, so from a flash slot every job after the first timed out |
