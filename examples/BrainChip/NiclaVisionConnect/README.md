@@ -52,14 +52,17 @@ python <repository>/tools/bb15_connect_package.py model_files/kws/akida_model.fb
     --map-mode HwPr --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 ```
 
-Human detection comes as two packages, one model mapped two ways, and either
-one runs the demo. Send one, and the board stores it and runs it; send the
-other later, and the board swaps to it. Nothing is rebuilt.
+The human detection package is
+`models/brainboard1500_nicla_vision_human_detection_hwpr.zip`, the model mapped
+with `akida.MapMode.HwPr` into three passes. The same model mapped with
+`AllNps`, in one pass, still comes as a second package and still runs the demo:
+send one, and the board stores it and runs it; send the other later, and the
+board swaps to it. Nothing is rebuilt.
 
-| package | map mode | passes | program | inference from flash |
+| package | map mode | passes | program | runs from |
 | --- | --- | --- | --- | --- |
-| `models/brainboard1500_nicla_vision_human_detection_allnps.zip` | `AllNps` | 1 | 209,632 B | 15.7 ms, 5.5 ms of it in the AKD1500 |
-| `models/brainboard1500_nicla_vision_human_detection_hwpr.zip` | `HwPr` | 3 | 377,600 B | 44.8 ms, 34.5 ms of it in the AKD1500 |
+| `models/brainboard1500_nicla_vision_human_detection_hwpr.zip` | `HwPr` | 3 | 377,600 B | a copy in AKD1500 SRAM |
+| `models/brainboard1500_nicla_vision_human_detection_allnps.zip` | `AllNps` | 1 | 209,632 B | flash |
 
 Both are the BrainChip Dev Hub visual wake words model, an AkidaNet with a
 0.25 width multiplier, so the app names either one `AkidaNet 0.25`. It is the
@@ -68,11 +71,13 @@ same model as `03_PersonDetection`'s `vww.h`, mapped for the AKD1500 with Akida
 every image tried. The `AllNps` package's two halves together are byte for byte
 `vww.h`'s program.
 
-`AllNps` fits the whole model on the AKD1500's neural processors at once.
+`AllNps` fits the whole model on the AKD1500's neural processors at once, and
+the AKD1500 reads its program data out of flash once, as it is programmed.
 `HwPr` maps it into three passes, and the Akida engine runs them itself,
-reconfiguring the fabric between passes. Its configuration is read out of
-flash again for every pass of every frame, which is why `HwPr` takes longer
-per frame here.
+reconfiguring the fabric from the program data between passes, so it would
+read all of it out of flash again for every frame. The library therefore
+copies it from its flash slot into the AKD1500's 1 MiB SRAM when the model is
+loaded, and every pass of every frame runs from there.
 
 Both were made with `tools/bb15_connect_package.py`, from the Dev Hub's
 `akida1/model_zoo/vww/pretrained_models/akidanet_vww_qat.fbz` (SHA-256
@@ -81,13 +86,13 @@ Both were made with `tools/bb15_connect_package.py`, from the Dev Hub's
 
 ```bash
 python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
-    --name brainboard1500_nicla_vision_human_detection_allnps \
-    --model-name "AkidaNet 0.25" \
-    --map-mode AllNps --out <repository>/examples/BrainChip/NiclaVisionConnect/models
-python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
     --name brainboard1500_nicla_vision_human_detection_hwpr \
     --model-name "AkidaNet 0.25" \
     --map-mode HwPr --out <repository>/examples/BrainChip/NiclaVisionConnect/models
+python <repository>/tools/bb15_connect_package.py akidanet_vww_qat.fbz \
+    --name brainboard1500_nicla_vision_human_detection_allnps \
+    --model-name "AkidaNet 0.25" \
+    --map-mode AllNps --out <repository>/examples/BrainChip/NiclaVisionConnect/models
 ```
 
 Every zip is reproducible: the same model gives the same bytes.
@@ -129,7 +134,7 @@ overwrites it cleanly.
 | --- | --- |
 | `0x00000` | the library's slot header: name, sizes and CRC-32 of both halves |
 | `0x00100` | this sketch's record: input and output shape, MFCC scale, silence and unknown classes, full model name, then the program info |
-| `0x01000` | the program data, which the AKD1500 reads itself through its SPI master |
+| `0x01000` | the program data, which the AKD1500 reads itself through its SPI master, or which the library copies into the AKD1500 SRAM at load |
 
 `flash_address` in `info.yaml` must therefore be `0x1000`, which is the library's
 fixed data offset; anything else is refused at START with `ERR_PARAM`.
@@ -138,22 +143,27 @@ Each application uses the slot `02_ModelFlasher` gives to the library's own
 model of the same kind, keyword spotting slot 2 and human detection slot 1, so
 the two sketches replace each other's models and nothing else. After this
 sketch has stored its keyword model, `04_KeywordSpotting` reports "flash slot
-holds another model" until `02_ModelFlasher` is run again. The `AllNps` human
-detection package is upstream's own program, so `03_PersonDetection` runs from
-the slot this sketch wrote it to; after the `HwPr` one, it reports "flash slot
-holds another model" too. After `02_ModelFlasher` has run, this sketch logs
+holds another model" until `02_ModelFlasher` is run again. After the `HwPr`
+human detection package, `03_PersonDetection` reports "flash slot holds another
+model" too; the `AllNps` package is upstream's own program, so after that one
+`03_PersonDetection` runs from the slot this sketch wrote it to. After
+`02_ModelFlasher` has run, this sketch logs
 that slots 1 and 2 hold models another sketch stored and waits for the app to
 send its own again. The slots' user areas, where `08_VoiceLearning` keeps
 learned weights, are never touched.
 
 Only one program fits in the Akida fabric, so nothing is loaded until the app
 asks for an application to run, and starting the other one is a model swap.
-Each slot's program info is read once at boot and kept in memory, so starting an
-application costs no flash bridge time: the AKD1500 reads the program data out
-of flash itself as it is programmed. Measured on the bench, a swap takes 13 ms
-for the keyword model, 46 ms for the `AllNps` human detection one and 60 ms for
-the `HwPr` one, including one inference on a blank input, which is how the
-board satisfies itself the model really runs before it says so.
+Each slot's program info is read once at boot and kept in memory, so starting
+the keyword model or the `AllNps` human detection one costs no flash bridge
+time: the AKD1500 reads the program data out of flash itself as it is
+programmed. The `HwPr` one is copied into the AKD1500 SRAM through the bridge
+the first time it starts after the board powers up, and later starts find that
+copy and only check it. Measured on the board, a swap takes 18 ms for the
+keyword model, 51 ms for the `AllNps` human detection one, and 3.2 s for the
+`HwPr` one the first time, 0.33 s after that, each including one inference on a
+blank input, which is how the board satisfies itself the model really runs
+before it says so.
 
 ## How the model arrives
 
@@ -225,8 +235,8 @@ which fits the BB15 rev 2 it was tested on, power enable on pin 15 included.
 Copy the packages in `models/` to the phone. Then open the app, pick
 `BrainBoard1500` from the device list, connect, and send a package from the
 Model Update screen. Each model that arrives adds its application to the home
-screen, so send the keyword spotting package and one of the human detection
-packages to get both; Run Application starts whichever one you pick.
+screen, so send the keyword spotting package and the `HwPr` human detection
+package to get both; Run Application starts whichever one you pick.
 
 The serial port carries a short log of what the board is doing, at 115200 baud.
 It is not needed to run the demo. Each boot opens with `previous_run=`, which
@@ -272,9 +282,9 @@ model runs is a constant in flash.
 
 Measured on the bench, scoring one frame takes about 24 ms with the `AllNps`
 package: 8 ms to turn the capture into the model's input and 16 ms for the
-inference, 5.5 ms of it in the AKD1500 itself. With the `HwPr` package it takes
-about 53 ms: the same 8 ms, then 45 ms for the inference, 34.5 ms of it in the
-AKD1500.
+inference, 5.5 ms of it in the AKD1500 itself. With the `HwPr` package, which
+runs from its copy in SRAM, it takes about 21 ms: the same 8 ms, then 12.8 ms
+for the inference's three passes.
 
 If the camera does not answer at boot, the board says so on its serial port and
 carries on with keyword spotting alone; Vision Human Detection then does not
