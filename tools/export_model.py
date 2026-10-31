@@ -46,9 +46,10 @@ def map_for_akd1500(model, mode=None):
     seq = model.sequences[0]
     program = bytes(seq.program)
     # "External memory" holds weights that an NP reads at run time (FNP2
-    # layers). When the model boots from a flash slot, the engine points
-    # those NPs straight at the program data in flash. When the model is
-    # pushed over SPI (slot 0), the engine copies them into AKD1500 SRAM.
+    # layers). When the model boots from a flash slot, the library copies
+    # the program data into AKD1500 SRAM if it fits there, otherwise the
+    # engine points those NPs straight at the program data in flash. When the
+    # model is pushed over SPI (slot 0), the engine copies them into SRAM.
     return program, len(seq.passes), int(model.external_memory_size)
 
 
@@ -178,8 +179,8 @@ def export(fbz_or_model, name, out_dir, labels=(), source=None, mode=None,
     for v in model.output_shape:
         output_count *= int(v)
     program, passes, external = map_for_akd1500(model, mode)
-    if passes != 1:
-        raise ExportError(f'{passes} passes; BrainBoard1500 supports single-pass programs')
+    if mode is not None:
+        notes = [f'Map mode: {mode.name}.'] + list(notes)
     info_size = split_program(program)
     data_size = len(program) - info_size
     if data_size > SLOT_MAX_DATA:

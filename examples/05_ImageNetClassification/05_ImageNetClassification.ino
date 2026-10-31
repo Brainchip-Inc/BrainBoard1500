@@ -10,8 +10,12 @@
 // used. On a 320x240 frame that is the central 210x210 square, which is
 // resampled to 160x160. Pixels stay 0..255; the model rescales internally.
 //
-// The 1000-class classifier is an FNP2 layer whose weights stay in the BB15
-// flash: the AKD1500 reads them directly from slot 3 for every inference.
+// The model is mapped in HwPr mode (four passes, see tools/build_all.py).
+// Every inference reads the program data again: the configuration of each
+// pass and the weights of the 1000-class FNP2 classifier. The library
+// therefore copies the program data from slot 3 into the AKD1500 SRAM at
+// load, which makes the first load after power-up a few seconds longer, and
+// every inference reads it from there instead of from the BB15 flash.
 // Two images of the BrainChip ImageNet-like sample pack are classified at
 // start-up and compared with the akida Python simulation.
 //

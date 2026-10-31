@@ -49,5 +49,4 @@ Then `#include "my_model.h"` in your sketch, run
 `python sync_examples.py` (or copy the header next to your `.ino`), and
 use `cbb15::models::myModel()`
 (flash slot) or `cbb15::models::myModelWithProgram()` (flasher, slot 0).
-The exporter rejects multi-pass programs and program data larger than a flash
-slot (978,944 bytes).
+The exporter rejects program data larger than a flash slot (978,944 bytes).

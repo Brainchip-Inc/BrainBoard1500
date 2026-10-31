@@ -117,7 +117,7 @@ bit, which is all the fast path needs.
 |---|---|---|---|---|
 | `03_PersonDetection` | 1 | vww | 210 KB | 96x96x3 |
 | `04_KeywordSpotting` | 2 | kws | 70 KB | 49x10 MFCC |
-| `05_ImageNetClassification` | 3 | imagenet | 442 KB | 160x160x3; its FNP2 classifier weights stay in flash |
+| `05_ImageNetClassification` | 3 | imagenet | 583 KB | 160x160x3; HwPr (4 passes), runs from a copy in AKD1500 SRAM |
 | `07_FaceLearning` | 4 | face_learn | 211 KB | learned weights in the slot 4 user area |
 | `06_EcgArrhythmia` | 0 | ecg | 64 KB | pushed over SPI |
 | `08_VoiceLearning` | 0 | voice_learn | 2 KB | pushed over SPI, weights in the slot 2 user area |
@@ -269,7 +269,7 @@ columns):
 | 03 person detection | 9 frames/s | **21.6 frames/s** | sensor |
 | 07 face learning | – | **21.6 frames/s** | sensor |
 | 10 ImageNet subset | ~10 frames/s | **16.3 frames/s** | inference (40.8 ms incl. transfer) |
-| 05 ImageNet (1000 classes) | – | **11.9 frames/s** | inference (66 ms incl. transfer) |
+| 05 ImageNet (1000 classes) | – | **11.7 frames/s** | loop processing (inference 36 ms incl. transfer) |
 
 The examples show the frame rate and the time spent waiting for the frame
 (`21.6 fps wait 13 ms`: 13 ms to spare per frame). The two frame buffers take

@@ -4,12 +4,34 @@
 
 #include "akida/dense.h"
 #include "akida/input_conversion.h"
+#include "akida/program_memory_info.h"
 #include "akida/sparse.h"
 #include "cbb15_crc32.h"
 
 namespace cbb15 {
 
 namespace {
+
+// Jobs the engine lets a single-pass program have in flight (a stream).
+constexpr uint32_t kMaxJobsInFlight = 16;
+// Room left for engine allocations the estimate below does not list.
+constexpr uint32_t kSramMarginBytes = 16 * 1024;
+
+// Upper bound of the AKD1500 SRAM the engine allocates for a program whose
+// data it does not copy: inference, a stream, and a learning step.
+uint32_t engineSramBytes(const akida::ProgramInfo& info) {
+  const uint32_t jobs = info.number_of_passes() > 1 ? 1 : kMaxJobsInFlight;
+  // FNP2 weights are part of the program data, which the engine leaves where
+  // it is. Its allocator does not reuse freed space below its top, so a
+  // stream adds its buffers to those of single-job inference.
+  return akida::program_descriptors_memory_required(info) +
+         akida::extra_program_memory_required(info) -
+         info.fnp2_required_memory() +
+         (jobs + 2) * akida::input_descriptor_memory_required(info) +
+         (jobs + 1) * akida::output_memory_required(info) +
+         2 * akida::input_memory_required(info) +
+         info.learn_weights_word_size() * sizeof(uint32_t) + kSramMarginBytes;
+}
 
 template <typename T>
 void appendScores(const akida::Dense& dense, std::vector<float>& out) {
@@ -75,7 +97,9 @@ Status Akida::begin(Board& board) {
     return Status::NotStarted;
   }
   board_ = &board;
-  device_ = akida::HardwareDevice::create(board.driver());
+  window_.attach(board.driver());
+  window_.reserveTop(0);
+  device_ = akida::HardwareDevice::create(&window_);
   loaded_ = false;
   learning_ = false;
   pending_ = 0;
@@ -139,8 +163,13 @@ Status Akida::program() {
   streaming_ = false;
   streamDepth_ = 0;
   const uint32_t t0 = millis();
+  const uint32_t sramBytes = slot_ > 0 ? copySlotToSram() : 0;
+  reserveSram(sramBytes);
   if (slot_ == 0) {
     info_ = device_->program(model_.blob, model_.blobSize);
+  } else if (sramBytes > 0) {
+    info_ = device_->program_external_data(model_.info, model_.infoSize,
+                                           sramAddress(sramBytes));
   } else {
     // The AKD1500 fetches the program data from flash during programming.
     board_->applyFlashRuntimeProfile();
@@ -166,6 +195,49 @@ Status Akida::program() {
   loaded_ = true;
   pending_ = 0;
   return Status::Ok;
+}
+
+uint32_t Akida::copySlotToSram() {
+  const uint32_t bytes = sramBytesNeeded();
+  if (bytes == 0) {
+    return 0;
+  }
+  // The loaded program must stop before its memory is overwritten.
+  device_->unprogram();
+  const Status st = board_->copySlotData(slot_, model_, sramAddress(bytes));
+  return st == Status::Ok ? bytes : 0;
+}
+
+uint32_t Akida::sramBytesNeeded() const {
+  const akida::ProgramInfo info(model_.info, model_.infoSize, 0);
+  // Programs that never read their data during a job gain nothing.
+  if (info.number_of_passes() == 1 && info.fnp2_required_memory() == 0) {
+    return 0;
+  }
+  const uint32_t bytes = (model_.dataSize + 3) & ~3u;
+  const uint32_t sram = board_->driver()->scratch_size();
+  // A program too large for the 1 MiB SRAM still runs, all its passes, but
+  // from flash, so every job pays for reading it again. Raising the AKD1500's
+  // flash clock to 100 MHz (cbb15_flash.cpp, untested on the BB15) is the way
+  // to reduce that overhead.
+  if (model_.dataSize == 0 || bytes + engineSramBytes(info) > sram) {
+    return 0;
+  }
+  return bytes;
+}
+
+uint32_t Akida::sramAddress(uint32_t bytes) const {
+  const akida::HardwareDriver* driver = board_->driver();
+  return driver->scratch_memory() + driver->scratch_size() - bytes;
+}
+
+void Akida::reserveSram(uint32_t bytes) {
+  if (bytes == window_.reserved()) {
+    return;
+  }
+  device_->unprogram();
+  window_.reserveTop(bytes);
+  device_ = akida::HardwareDevice::create(&window_);
 }
 
 bool Akida::drain() {
@@ -200,10 +272,6 @@ Status Akida::run(const uint8_t* input, const int32_t* label,
   }
   if (!drain()) {
     return Status::FetchTimeout;
-  }
-  if (slot_ > 0) {
-    // Cheap (a few register writes): keeps the AKD1500 flash reads valid.
-    board_->applyFlashRuntimeProfile();
   }
   const akida::Shape dims = info_.input_dims();
   auto dense = akida::Dense::create_view(reinterpret_cast<const char*>(input),
@@ -309,9 +377,6 @@ Status Akida::startStream(const uint8_t* input, uint8_t depth) {
 Status Akida::updateStreamInput(const uint8_t* input) {
   if (!streaming_ || input == nullptr) {
     return Status::InvalidArgument;
-  }
-  if (slot_ > 0) {
-    board_->applyFlashRuntimeProfile();
   }
   board_->driver()->write(streamInput_, input, inputBytes());
   return Status::Ok;

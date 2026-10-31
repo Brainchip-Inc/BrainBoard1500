@@ -376,6 +376,49 @@ Status Board::eraseSlot(uint8_t slot) {
   return ok ? Status::Ok : Status::FlashEraseFailed;
 }
 
+Status Board::copySlotData(uint8_t slot, const Model& model,
+                           uint32_t address) {
+  if (slot < 1 || slot > kSlotCount || model.dataSize == 0 ||
+      model.dataSize > kSlotMaxDataSize) {
+    return Status::InvalidArgument;
+  }
+  if (akidaMemoryCrc32(address, model.dataSize) == model.dataCrc32) {
+    return Status::Ok;
+  }
+  const Status st = openBridge();
+  if (st != Status::Ok) {
+    return st;
+  }
+  // The AKD1500 SPI slave keeps working while the bridge is open, so every
+  // chunk goes from the flash straight on into the AKD1500 memory.
+  const uint32_t base = slotFlashOffset(slot) + kSlotDataOffset;
+  std::vector<uint8_t> chunk(1024);
+  uint32_t crc = 0;
+  for (uint32_t offset = 0; offset < model.dataSize; offset += chunk.size()) {
+    const uint32_t n = std::min<uint32_t>(chunk.size(), model.dataSize - offset);
+    flash_.read(base + offset, chunk.data(), n);
+    crc = crc32Update(crc, chunk.data(), n);
+    driver_->write(address + offset, chunk.data(), n);
+  }
+  closeBridge();
+  if (crc != model.dataCrc32 ||
+      akidaMemoryCrc32(address, model.dataSize) != model.dataCrc32) {
+    return Status::FlashVerifyFailed;
+  }
+  return Status::Ok;
+}
+
+uint32_t Board::akidaMemoryCrc32(uint32_t address, uint32_t size) {
+  std::vector<uint8_t> chunk(1024);
+  uint32_t crc = 0;
+  for (uint32_t offset = 0; offset < size; offset += chunk.size()) {
+    const uint32_t n = std::min<uint32_t>(chunk.size(), size - offset);
+    driver_->read(address + offset, chunk.data(), n);
+    crc = crc32Update(crc, chunk.data(), n);
+  }
+  return crc;
+}
+
 Status Board::writeUserData(uint8_t slot, const void* data, uint32_t size,
                             uint32_t modelInfoCrc32) {
   if (slot < 1 || slot > kSlotCount || data == nullptr ||
