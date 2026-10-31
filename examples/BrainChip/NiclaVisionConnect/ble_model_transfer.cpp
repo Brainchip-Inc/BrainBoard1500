@@ -1567,7 +1567,8 @@ bool load(App app) {
   Serial.print(" slot=");
   Serial.print(kAppSlots[appIndex(app)]);
   Serial.print(" ms=");
-  Serial.println(static_cast<unsigned long>(millis() - started));
+  Serial.print(static_cast<unsigned long>(millis() - started));
+  Serial.println(g_runtime->slotInSram() ? " from=sram" : " from=flash");
 
   if (g_on_loaded != nullptr) {
     g_on_loaded(g_loaded);

@@ -92,6 +92,12 @@ class Board {
   // True if the slot header describes exactly this model.
   Status checkSlot(uint8_t slot, const Model& model);
   Status eraseSlot(uint8_t slot);
+  // Copies the model's program data from slot 1..4 into AKD1500 memory at
+  // `address` (the SRAM, as the engine addresses it) through the S2M bridge,
+  // then reads the copy back. Nothing is copied when that memory already
+  // holds exactly this data. FlashVerifyFailed unless both the flash data
+  // and the copy match the model's data CRC.
+  Status copySlotData(uint8_t slot, const Model& model, uint32_t address);
 
   // User area of a slot (64 KiB), used for learned weights.
   Status writeUserData(uint8_t slot, const void* data, uint32_t size,
@@ -110,6 +116,8 @@ class Board {
  private:
   Status checkLink(Print* log);
   uint32_t rawRead32(uint32_t address);
+  // CRC-32 of `size` bytes of AKD1500 memory, read over the SPI slave.
+  uint32_t akidaMemoryCrc32(uint32_t address, uint32_t size);
   Status openBridge();
   void closeBridge();
 

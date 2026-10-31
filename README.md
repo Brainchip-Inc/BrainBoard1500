@@ -112,6 +112,19 @@ The serialized Akida program is *program info* (stays on the host) followed by
 AKD1500 reads the program data itself through its SPI master at 0x8000_0000.
 Sketches that boot from flash therefore do not link the program data.
 
+A program that would read the flash during every inference, because it runs
+in more than one pass or keeps FNP2 weights in external memory, is copied from
+its slot into the top of the 1 MiB AKD1500 SRAM instead when it fits there
+beside the engine's own buffers, and runs from that copy. The copy goes through
+the S2M bridge and is checked against the program data CRC-32, so it makes the
+load slower, once, and every inference faster: the 377 KB of the three-pass
+`HwPr` human detection model take about 3.2 s to load, after which an inference
+takes 12.8 ms instead of 45.0 ms. A load that finds exactly that data still in
+SRAM, for example when switching back to the model, skips the copy and takes
+about 0.3 s. `Akida::slotInSram()` says which way a model was loaded. A program too
+large for the SRAM still runs from flash, reading its data again on every
+inference.
+
 **Skipping the flash-profile probe.** Probing the flash (S2M bridge on and off
 twice, reset preamble, JEDEC id, quad-enable bit) takes about one second.
 `BoardConfig::assumeFlashReady = true` (the default) skips it and only writes
@@ -123,7 +136,7 @@ bit, which is all the fast path needs.
 |---|---|---|---|---|
 | `03_PersonDetection` | 1 | vww | 210 KB | 96x96x3 |
 | `04_KeywordSpotting` | 2 | kws | 70 KB | 49x10 MFCC |
-| `05_ImageNetClassification` | 3 | imagenet | 442 KB | 160x160x3; its FNP2 classifier weights stay in flash |
+| `05_ImageNetClassification` | 3 | imagenet | 442 KB | 160x160x3; FNP2 classifier weights, so it runs from a copy in AKD1500 SRAM |
 | `07_FaceLearning` | 4 | face_learn | 211 KB | learned weights in the slot 4 user area |
 | `06_EcgArrhythmia` | 0 | ecg | 64 KB | pushed over SPI |
 | `08_VoiceLearning` | 0 | voice_learn | 2 KB | pushed over SPI, weights in the slot 2 user area |
