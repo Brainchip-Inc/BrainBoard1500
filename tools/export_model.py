@@ -46,9 +46,10 @@ def map_for_akd1500(model, mode=None):
     seq = model.sequences[0]
     program = bytes(seq.program)
     # "External memory" holds weights that an NP reads at run time (FNP2
-    # layers). When the model boots from a flash slot, the engine points
-    # those NPs straight at the program data in flash. When the model is
-    # pushed over SPI (slot 0), the engine copies them into AKD1500 SRAM.
+    # layers). When the model boots from a flash slot, the library copies
+    # the program data into AKD1500 SRAM if it fits there, otherwise the
+    # engine points those NPs straight at the program data in flash. When the
+    # model is pushed over SPI (slot 0), the engine copies them into SRAM.
     return program, len(seq.passes), int(model.external_memory_size)
 
 

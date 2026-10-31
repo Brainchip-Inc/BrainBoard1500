@@ -6,6 +6,10 @@
 //   slot 1..4  only the program info is sent; the AKD1500 reads the program
 //              data itself from the BB15 flash through its SPI master
 //              (HardwareDevice::program_external_data at 0x8000_0000 + slot)
+//              A program that would read the flash during every job (more
+//              than one pass, or FNP2 weights) is instead copied from its
+//              slot into the top of the AKD1500 SRAM when it fits there, and
+//              runs from that copy (program_external_data at the copy).
 //
 // Inference uses one input at a time (batch size 1). Outputs are converted
 // to float scores: dequantized potentials if the last layer has no
@@ -39,6 +43,42 @@ struct InferenceResult {
   float margin() const { return bestScore - secondScore; }
 };
 
+// The Akida Engine allocates its buffers in the AKD1500 SRAM window its driver
+// reports, and reads that window once, when a device is created. This driver
+// passes everything through to the board's driver but leaves the top of the
+// SRAM out of the window, so program data copied there is never allocated
+// over.
+class SramWindow final : public akida::HardwareDriver {
+ public:
+  void attach(akida::HardwareDriver* driver) { driver_ = driver; }
+  // Keeps the top `bytes` of the SRAM from devices created afterwards.
+  void reserveTop(uint32_t bytes) { reserved_ = bytes; }
+  uint32_t reserved() const { return reserved_; }
+
+  const char* desc() const override { return driver_->desc(); }
+  uint32_t scratch_memory() const override { return driver_->scratch_memory(); }
+  uint32_t scratch_size() const override {
+    return driver_->scratch_size() - reserved_;
+  }
+  uint32_t top_level_reg() const override { return driver_->top_level_reg(); }
+  uint32_t akida_visible_memory() const override {
+    return driver_->akida_visible_memory();
+  }
+  uint32_t akida_visible_memory_size() const override {
+    return driver_->akida_visible_memory_size();
+  }
+  void read(uint32_t address, void* data, size_t size) const override {
+    driver_->read(address, data, size);
+  }
+  void write(uint32_t address, const void* data, size_t size) override {
+    driver_->write(address, data, size);
+  }
+
+ private:
+  akida::HardwareDriver* driver_ = nullptr;
+  uint32_t reserved_ = 0;
+};
+
 class Akida {
  public:
   Status begin(Board& board);
@@ -53,6 +93,9 @@ class Akida {
   bool loaded() const { return loaded_; }
   const Model& model() const { return model_; }
   uint8_t slot() const { return slot_; }
+  // True when the program data of the flash slot was copied into the AKD1500
+  // SRAM at load, so jobs never read the flash.
+  bool slotInSram() const { return loaded_ && window_.reserved() > 0; }
   uint32_t loadTimeMs() const { return loadTimeMs_; }
 
   // Runs one inference. The input is uint8 [height][width][channels].
@@ -112,10 +155,23 @@ class Akida {
              InferenceResult* result);
   bool drain();
   Status program();
+  // Copies the slot's program data into the top of the AKD1500 SRAM if the
+  // program reads it during every job and fits there. Returns the bytes the
+  // copy takes, or 0 when the program has to run from flash.
+  uint32_t copySlotToSram();
+  // Bytes the slot's program data takes at the top of the SRAM, or 0 when
+  // the program gains nothing from SRAM or does not fit there.
+  uint32_t sramBytesNeeded() const;
+  // AKD1500 address of program data that takes the top `bytes` of the SRAM.
+  uint32_t sramAddress(uint32_t bytes) const;
+  // Creates a device whose SRAM window leaves out the top `bytes`, unless
+  // the current device already has that window.
+  void reserveSram(uint32_t bytes);
   Status toResult(const akida::Tensor& output, InferenceResult& result);
   uint32_t inputBytes() const;
 
   Board* board_ = nullptr;
+  SramWindow window_;
   akida::HardwareDevicePtr device_;
   akida::ProgramInfo info_;
   Model model_;
