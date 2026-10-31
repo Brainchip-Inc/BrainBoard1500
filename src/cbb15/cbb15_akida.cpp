@@ -201,10 +201,6 @@ Status Akida::run(const uint8_t* input, const int32_t* label,
   if (!drain()) {
     return Status::FetchTimeout;
   }
-  if (slot_ > 0) {
-    // Cheap (a few register writes): keeps the AKD1500 flash reads valid.
-    board_->applyFlashRuntimeProfile();
-  }
   const akida::Shape dims = info_.input_dims();
   auto dense = akida::Dense::create_view(reinterpret_cast<const char*>(input),
                                          akida::TensorType::uint8, dims,
@@ -309,9 +305,6 @@ Status Akida::startStream(const uint8_t* input, uint8_t depth) {
 Status Akida::updateStreamInput(const uint8_t* input) {
   if (!streaming_ || input == nullptr) {
     return Status::InvalidArgument;
-  }
-  if (slot_ > 0) {
-    board_->applyFlashRuntimeProfile();
   }
   board_->driver()->write(streamInput_, input, inputBytes());
   return Status::Ok;
