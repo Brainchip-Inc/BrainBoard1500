@@ -15,7 +15,8 @@ Inputs (all public):
 Models exported (Dev Hub akida1 model zoo, mapped for the AKD1500):
   vww        akidanet_vww_qat.fbz                     person detection 96x96x3
   kws        speech_commands_qat.fbz                  12 keywords, 49x10 MFCC
-  imagenet   akidanet_imagenet_160_alpha_0.25_qat.fbz 1000 classes 160x160x3
+  imagenet   akidanet_imagenet_160_alpha_0.25_qat.fbz 1000 classes 160x160x3,
+                                                      HwPr (4 passes)
   ecg        arrhythmia_classification_qat.fbz        N / S / V beats 36x32x1
   face_learn, voice_learn                             see make_learning_models.py
 
@@ -27,6 +28,8 @@ import argparse
 import ast
 import os
 import sys
+
+import akida
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import export_model  # noqa: E402
@@ -65,17 +68,19 @@ def main():
 
     zoo = os.path.join(a.devhub, 'akida1', 'model_zoo')
     jobs = [
-        ('vww', 'vww/pretrained_models/akidanet_vww_qat.fbz', VWW_LABELS),
+        ('vww', 'vww/pretrained_models/akidanet_vww_qat.fbz', VWW_LABELS, None),
         ('kws', 'speech_commands/pretrained_models/speech_commands_qat.fbz',
-         cbb15_mfcc.LABELS),
+         cbb15_mfcc.LABELS, None),
         ('imagenet', 'imagenet_akidanet/pretrained_models/'
-         'akidanet_imagenet_160_alpha_0.25_qat.fbz', imagenet_labels(a.imagenet_labels)),
+         'akidanet_imagenet_160_alpha_0.25_qat.fbz', imagenet_labels(a.imagenet_labels),
+         akida.MapMode.HwPr),
         ('ecg', 'arrhythmia_classification/pretrained_models/'
-         'arrhythmia_classification_qat.fbz', ECG_LABELS),
+         'arrhythmia_classification_qat.fbz', ECG_LABELS, None),
     ]
-    for name, rel, labels in jobs:
+    for name, rel, labels, mode in jobs:
         print(export_model.export(os.path.join(zoo, rel), name, a.out, labels,
-                                  source=f'brainchip_devhub akida1/model_zoo/{rel}'))
+                                  source=f'brainchip_devhub akida1/model_zoo/{rel}',
+                                  mode=mode))
     try:
         export_model.export(os.path.join(
             zoo, 'plant_village/pretrained_models/akidanet_plant_village_qat.fbz'),

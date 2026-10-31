@@ -179,8 +179,8 @@ def export(fbz_or_model, name, out_dir, labels=(), source=None, mode=None,
     for v in model.output_shape:
         output_count *= int(v)
     program, passes, external = map_for_akd1500(model, mode)
-    if passes != 1:
-        raise ExportError(f'{passes} passes; BrainBoard1500 supports single-pass programs')
+    if mode is not None:
+        notes = [f'Map mode: {mode.name}.'] + list(notes)
     info_size = split_program(program)
     data_size = len(program) - info_size
     if data_size > SLOT_MAX_DATA:
